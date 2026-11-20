@@ -8,9 +8,9 @@ Winamp, а не минималистичный плеер. «Хотелки» п
 
 Рабочий плеер на Rust/egui с классическим интерфейсом, реальным аудио, gapless-
 очередью, эквалайзером, плейлистом, скинами, session restore, Now Playing,
-windowshade, double size, стыковка окон, фильтр, drag-reorder и удаление
-треков во время воспроизведения, плюс подписанный ad-hoc `.app`. Это уже не
-спайк. `fmt`/`clippy -D warnings` чистые, 19 тестов зелёные.
+windowshade, double size, стыковка окон, фильтр, drag-reorder, удаление
+треков во время воспроизведения и DriveMusic-браузер, плюс подписанный ad-hoc
+`.app`. Это уже не спайк. `fmt`/`clippy -D warnings` чистые, 23 теста зелёные.
 
 ## Проверки перед продолжением
 
@@ -23,7 +23,8 @@ cargo build
 ./scripts/bundle_macos.sh
 ```
 
-Ожидаемо: 19 тестов, `dist/MacAmp.app`, release-бинарник ~16 МБ.
+Ожидаемо: 23 теста, `dist/MacAmp.app`, release-бинарник ~18–20 МБ (scraper/
+html5ever добавляют вес).
 Единственный внешний warning: `block 0.1.6` (future-incompat) из souvlaki;
 на текущем Rust 1.100 собирается. Наш код warning-free.
 
@@ -57,6 +58,7 @@ open dist/MacAmp.app
 | `src/app.rs` | всё состояние, состояние сессии, очередь/порядок, окна Main/Playlist/EQ, геометрия окон и snapping, ввод, меню, отрисовка |
 | `src/audio.rs` | один `OutputStream`, Rodio `Player`, gapless-lookahead, seek/volume/balance, FFT-tap, EQ DSP |
 | `src/metadata.rs` | `Track`, lofty, фоновый загрузчик тегов/папок |
+| `src/drivemusic.rs` | DriveMusic: поиск/парсинг страниц, HTTP-воркеры, кэш MP3 |
 | `src/spectrum.rs` | realfft-анализатор, 30 полос |
 | `src/theme.rs` | Graphite/Midnight/Brass, метрики, bevel/inset/gradient |
 | `src/widgets.rs` | кастомные кнопки, слайдеры, тайтлбары, LED-текст, спектр |
@@ -77,6 +79,7 @@ open dist/MacAmp.app
   drag через `ViewportCommand::StartDrag`. Размеры:
   - Main **550×232**, windowshade **550×30**
   - Playlist **550×464** по умолчанию, user-resizable (330×200 … 1400×1200)
+  - DriveMusic **550×464**
   - EQ **550×232**
 - Main — root viewport. Playlist и EQ — **immediate viewports** через
   `show_viewport_immediate` рядом друг с другом. Их нельзя нормально снять
@@ -101,6 +104,22 @@ open dist/MacAmp.app
 - **Ресайз плейлиста**: кастомный grip 14×14 в правом нижнем углу, тянет
   `InnerSize`; `playlist_size` сохраняется в конфиге. Синхронизация размера
   из `inner_rect` подавляется во время drag и ещё 350 мс после него.
+- **DriveMusic**: UI — `DriveUi`/`draw_drive` в `app.rs`, сеть и парсинг —
+  `drivemusic.rs`. Два фоновых потока: HTML (поиск/артист) и последовательные
+  загрузки; UI не блокируется. Запросы только по действию пользователя,
+  без сканирования каталога. Эндпоинты: поиск `GET /?do=search&subaction=
+  search&story=...`, артист `/artist/{slug}.html` (+ `/page-N.html`), трек —
+  `a.btn-download[href]`. Селекторы строк: `button.popular-play__item
+  [data-url]`, `a.popular-play-author`, `div.popular-play-composition a`,
+  `div.popular-download-number`; артисты поиска — `.c-search-results__artists
+  a.carousel-slide`. Кэш: `<data>/cache/drivemusic/<page-stem>.mp3`, пишется
+  в `.part` и переименовывается. После загрузки `Track::load`, title/artist
+  берутся со страницы (в тегах сайта мусорный `[drivemusic.me]`), album с
+  «drivemusic» вычищается; трек добавляется в обычный `config.tracks`.
+  `pending_play` хранит ключ трека, который надо запустить после скачивания;
+  `downloads`/`intents` — прогресс и Play/Add. Ошибки удаляют `.part` и
+  показываются в статусе/toast. Сайт просит не автоматизировать `/dl` и
+  поисковые query; не превращать это в краулер.
 - Шрифт Silkscreen вшит (`assets/fonts/`), у него нет кириллицы. Кириллица
   падает в системный fallback; это осознанно. Пиксельный шрифт с кириллицей —
   будущая задача.
@@ -161,9 +180,9 @@ open dist/MacAmp.app
 
 `Config` (serde) хранит:
 `tracks`, `current`, `position_ms`, `volume`, `balance`, `skin`,
-`show_playlist`, `playlist_pos`, `playlist_size`, `main_pos`, `repeat`,
-`shuffle`, `always_on_top`, `shaded`, `double_size`, `show_eq`, `eq_enabled`,
-`eq_gains`, `eq_preset`, `eq_pos`.
+`show_playlist`, `playlist_pos`, `playlist_size`, `show_drive`, `drive_pos`,
+`main_pos`, `repeat`, `shuffle`, `always_on_top`, `shaded`, `double_size`,
+`show_eq`, `eq_enabled`, `eq_gains`, `eq_preset`, `eq_pos`.
 
 Autosave раз в 3 секунды при dirty + на close/Drop. При добавлении новых
 полей не забыть:
@@ -177,9 +196,12 @@ roundtrip. Окно позиций сохраняется из viewport `outer_r
   VOL/BAL, clutterbar.
 - Shade: компактная полоса 550×30 — LED-время, prev/play/pause/stop/next,
   EQ/PL, те же кнопки окна.
-- Menu: skins, Always on top, Windowshade, Double size, Playlist, Open
-  files/folder, About, Quit. `⌘D` — double size.
-- Окна стыкуются краями; главное окно перемещает пристёгнутые playlist/EQ.
+- Menu: skins, Always on top, Windowshade, Double size, Playlist, DriveMusic,
+  Open files/folder, About, Quit. `⌘D` — double size, `⌘L` — DriveMusic.
+- DriveMusic: `FIND` (поиск), список артистов, страница артиста (до 20 треков,
+  MORE подгружает следующую), BACK, PLAY/ADD/ADD ALL; двойной клик по строке.
+  Скачанные треки отмечаются `✓`, в процессе — проценты; статус в футере.
+- Окна стыкуются краями; главное окно перемещает пристёгнутые playlist/EQ/Drive.
 - Playlist: ADD/FOLDER/REM, теги, duration, current/selected, двойной клик,
   wheel, кастомный скроллбар (скрывается при коротком списке), total duration,
   resize grip с сохранением размера. Строка `FIND` фильтрует по title/artist/
@@ -193,7 +215,8 @@ roundtrip. Окно позиций сохраняется из viewport `outer_r
 - Skins: Graphite (default), Midnight, Brass.
 - Иконка приложения + `.app`.
 - Скриншоты в `docs/`: `macamp_main.png`, `macamp_shade.png`,
-  `macamp_playlist.png`, `macamp_eq.png`; README показывает их.
+  `macamp_playlist.png`, `macamp_eq.png`, `macamp_drive.png`; README показывает
+  их.
 
 ## Dev-флаги и скриншоты
 
@@ -205,8 +228,14 @@ roundtrip. Окно позиций сохраняется из viewport `outer_r
   `config.playlist_size` (по умолчанию 550×464). Удобно снимать скриншот
   плейлиста через `MACAMP_SCREENSHOT`.
 - `MACAMP_EQ_ROOT=1` — то же для EQ 550×232.
+- `MACAMP_DRIVE_ROOT=1` — DriveMusic как root 550×464 для скриншотов.
 - `MACAMP_PLAYLIST_FILTER=tycho` — задать стартовый текст фильтра для
   скриншотов и проверки пустого результата.
+- `MACAMP_DRIVE_SEARCH=zivert` — автоматический поиск при старте;
+  `MACAMP_DRIVE_ARTIST=zivert` — открыть найденного артиста;
+  `MACAMP_DRIVE_PLAY=1` — скачать и запустить первый трек страницы
+  (использовать только с тестовым `MACAMP_DATA_DIR`).
+- `MACAMP_SCREENSHOT_DELAY=10` — задержка скриншота в секундах (по умолчанию 2).
 - Для скриншотов windowshade/double size положить в `MACAMP_DATA_DIR/config.json`
   `{"shaded": true}` и/или `{"double_size": true}`. Double size снимается в
   физических пикселях (1100×464 при Retina).
@@ -235,6 +264,11 @@ timeout 20 ./target/debug/macamp /tmp/macamp-demo/*.flac
 - Нет Finder open-with/Apple Events; Info.plist без document types. Работают
   drag & drop и `⌘O`. Ассоциации — следующий шаг.
 - Играющий трек нельзя удалить во время воспроизведения (остальные можно).
+- DriveMusic: нет менеджера кэша/очистки, поиска по трекам отдельно от
+  артистов, обложек и плейлистов сайта; токены CDN временные (скачивание
+  резолвит страницу трека заново). Сайт в robots.txt закрывает `/dl` и
+  поисковые query для ботов — интеграция только user-triggered, для личного
+  прослушивания; условия сайта нужно уважать.
 - EQ без AUTO/preamp.
 - Нет локализации/accessibility, не notarized, нет DMG.
 - `.app` подписан ad-hoc; `codesign --verify --deep --strict` проходит.
@@ -248,19 +282,23 @@ timeout 20 ./target/debug/macamp /tmp/macamp-demo/*.flac
    identity для current, а не индекс), мультивыделение, плейлисты m3u/pls,
    shade для playlist/EQ. Windowshade, double size, snapping, ресайз, фильтр,
    drag-reorder и удаление не-текущих треков уже есть.
-2. **Медиатека**: SQLite (`rusqlite`) + `walkdir` + `notify` + `lofty`,
+2. **DriveMusic**: менеджер кэша (размер/очистка), поиск треков и альбомов
+   отдельно от артистов, обложки, плейлисты сайта, прогресс-бар в строке,
+   отмена загрузки и приоритет Play над очередью Add.
+3. **Медиатека**: SQLite (`rusqlite`) + `walkdir` + `notify` + `lofty`,
    фоновый скан, поиск, обложки (кэш на диск), плейлисты m3u/m3u8/pls,
    умные плейлисты. Новая вкладка/окно Library в том же стиле или modern skin.
-3. **Скины**: импорт `.wsz` (`wsz 0.2`), атлас спрайтов, skin browser и
+4. **Скины**: импорт `.wsz` (`wsz 0.2`), атлас спрайтов, skin browser и
    предпросмотр; не бандлить чужие ассеты; поддержать viscolor.txt/pledit.txt.
-4. **Визуализация**: полноэкранный FFT-виз, второй монитор; опционально
+5. **Визуализация**: полноэкранный FFT-виз, второй монитор; опционально
    projectM (системная libprojectm, LGPL, CMake) как отдельная фича.
-5. **macOS-полировка**: Apple Events для открытия файлов из Finder, Dock menu,
+6. **macOS-полировка**: Apple Events для открытия файлов из Finder, Dock menu,
    media-key проверка на живом железе, notarization + DMG, RU/EN,
    accessibility, album art в Now Playing.
 
 Быстрые победы, которые можно сделать первыми:
 - Удаление текущего playing-трека через detached-current identity.
+- Очистка кэша DriveMusic и показ занятого места.
 - Альбомные обложки в библиотеке/Now Playing.
 - `AUTO`/preamp EQ.
 - ReplayGain/кроссфейд (кроссфейд потребует второго источника в микшере).
@@ -278,3 +316,5 @@ timeout 20 ./target/debug/macamp /tmp/macamp-demo/*.flac
 - Не публиковать artifact, пока auth не исправлен.
 - Не удалять оригинальную графику/лицензию Silkscreen (`assets/fonts/OFL.txt`).
 - Не откатывать egui 0.37 / новый `App::logic`+`ui` API.
+- Не превращать DriveMusic в краулер: только user-triggered поиск/артист/play,
+  без массового обхода каталога и фоновой докачки всех подряд треков.

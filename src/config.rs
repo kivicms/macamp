@@ -56,6 +56,8 @@ pub struct Config {
     pub show_playlist: bool,
     pub playlist_pos: Option<[f32; 2]>,
     pub playlist_size: [f32; 2],
+    pub show_drive: bool,
+    pub drive_pos: Option<[f32; 2]>,
     pub main_pos: Option<[f32; 2]>,
     pub repeat: RepeatMode,
     pub shuffle: bool,
@@ -82,6 +84,8 @@ impl Default for Config {
             show_playlist: true,
             playlist_pos: None,
             playlist_size: [PLAYLIST_W, PLAYLIST_H],
+            show_drive: false,
+            drive_pos: None,
             main_pos: None,
             repeat: RepeatMode::Off,
             shuffle: false,
@@ -254,6 +258,8 @@ mod tests {
             shaded: true,
             double_size: true,
             playlist_size: [640.0, 520.0],
+            show_drive: true,
+            drive_pos: Some([12.0, 34.0]),
             ..Default::default()
         };
         let text = serde_json::to_string(&config).unwrap();
@@ -266,6 +272,8 @@ mod tests {
         assert!(parsed.shaded);
         assert!(parsed.double_size);
         assert_eq!(parsed.playlist_size, [640.0, 520.0]);
+        assert!(parsed.show_drive);
+        assert_eq!(parsed.drive_pos, Some([12.0, 34.0]));
     }
 
     #[test]

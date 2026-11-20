@@ -14,6 +14,8 @@ pub const PLAYLIST_MIN_W: f32 = 330.0;
 pub const PLAYLIST_MIN_H: f32 = 200.0;
 pub const PLAYLIST_MAX_W: f32 = 1400.0;
 pub const PLAYLIST_MAX_H: f32 = 1200.0;
+pub const DRIVE_W: f32 = 550.0;
+pub const DRIVE_H: f32 = 464.0;
 pub const EQ_W: f32 = 550.0;
 pub const EQ_H: f32 = 232.0;
 

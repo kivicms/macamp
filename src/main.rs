@@ -1,6 +1,7 @@
 mod app;
 mod audio;
 mod config;
+mod drivemusic;
 mod metadata;
 mod platform;
 mod spectrum;
@@ -11,7 +12,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use eframe::egui;
-use theme::{EQ_H, EQ_W, MAIN_H, MAIN_W, PIXEL_FAMILY, SHADE_H};
+use theme::{DRIVE_H, DRIVE_W, EQ_H, EQ_W, MAIN_H, MAIN_W, PIXEL_FAMILY, SHADE_H};
 
 use crate::app::{MacAmpApp, StartupOptions};
 use crate::config::Config;
@@ -68,8 +69,11 @@ fn main() -> eframe::Result {
     let autoplay = std::env::var_os("MACAMP_AUTOPLAY").is_some() || !initial_paths.is_empty();
     let playlist_root = std::env::var_os("MACAMP_PLAYLIST_ROOT").is_some();
     let eq_root = std::env::var_os("MACAMP_EQ_ROOT").is_some();
+    let drive_root = std::env::var_os("MACAMP_DRIVE_ROOT").is_some();
     let (window_w, window_h) = if playlist_root {
         (config.playlist_size[0], config.playlist_size[1])
+    } else if drive_root {
+        (DRIVE_W, DRIVE_H)
     } else if eq_root {
         (EQ_W, EQ_H)
     } else if config.shaded {
@@ -132,6 +136,7 @@ fn main() -> eframe::Result {
                     screenshot,
                     playlist_root,
                     eq_root,
+                    drive_root,
                 },
             );
             Ok(Box::new(app))

@@ -1,5 +1,6 @@
 //! Application state and the hand-painted classic interface.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -13,12 +14,17 @@ use souvlaki::{MediaControlEvent, MediaPlayback, MediaPosition, SeekDirection};
 
 use crate::audio::{DspSettings, Engine};
 use crate::config::{Config, RepeatMode};
+use crate::drivemusic::{
+    self, cache_path, cached_track, is_cached, ArtistHit, ArtistPage, DmEvent, DmService,
+    RemoteTrack, SearchResults,
+};
 use crate::metadata::{LoaderEvent, Track, TrackLoader};
 use crate::platform::MediaBridge;
 use crate::spectrum::Spectrum;
 use crate::theme::{
-    bevel, child_rect, gradient_rect, inset, lerp_color, Palette, Skin, EQ_H, EQ_W, MAIN_H, MAIN_W,
-    PLAYLIST_MAX_H, PLAYLIST_MAX_W, PLAYLIST_MIN_H, PLAYLIST_MIN_W, SHADE_H, TITLE_H,
+    bevel, child_rect, gradient_rect, inset, lerp_color, Palette, Skin, DRIVE_H, DRIVE_W, EQ_H,
+    EQ_W, MAIN_H, MAIN_W, PLAYLIST_MAX_H, PLAYLIST_MAX_W, PLAYLIST_MIN_H, PLAYLIST_MIN_W, SHADE_H,
+    TITLE_H,
 };
 use crate::widgets::{
     classic_button, draw_icon, draw_marquee, draw_scrollbar, draw_spectrum, led_text,
@@ -27,11 +33,14 @@ use crate::widgets::{
 
 const PLAYLIST_VIEWPORT: &str = "macamp_playlist";
 const EQ_VIEWPORT: &str = "macamp_equalizer";
+const DRIVE_VIEWPORT: &str = "macamp_drive";
 const ROW_H: f32 = 22.0;
 const SNAP_DIST: f32 = 12.0;
 const WINDOW_MAIN: usize = 0;
 const WINDOW_PLAYLIST: usize = 1;
 const WINDOW_EQ: usize = 2;
+const WINDOW_DRIVE: usize = 3;
+const WINDOW_COUNT: usize = 4;
 
 pub fn playlist_viewport_id() -> ViewportId {
     ViewportId::from_hash_of(PLAYLIST_VIEWPORT)
@@ -39,6 +48,10 @@ pub fn playlist_viewport_id() -> ViewportId {
 
 pub fn eq_viewport_id() -> ViewportId {
     ViewportId::from_hash_of(EQ_VIEWPORT)
+}
+
+pub fn drive_viewport_id() -> ViewportId {
+    ViewportId::from_hash_of(DRIVE_VIEWPORT)
 }
 
 const EQ_PRESETS: [(&str, [f32; 10]); 6] = [
@@ -69,6 +82,7 @@ pub struct StartupOptions {
     pub screenshot: Option<PathBuf>,
     pub playlist_root: bool,
     pub eq_root: bool,
+    pub drive_root: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -78,6 +92,7 @@ enum MenuAction {
     Windowshade,
     DoubleSize,
     Playlist,
+    DriveMusic,
     OpenFiles,
     OpenFolder,
     About,
@@ -88,6 +103,111 @@ struct Toast {
     text: String,
     until: Instant,
     error: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DownloadIntent {
+    Play,
+    Add,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DriveAction {
+    None,
+    Open(usize),
+    Play(usize),
+    Add(usize),
+    AddAll,
+    LoadMore,
+    Back,
+}
+
+enum DriveView {
+    Empty,
+    Artists(Vec<ArtistHit>),
+    Artist(ArtistView),
+}
+
+struct ArtistView {
+    name: String,
+    tracks: Vec<RemoteTrack>,
+    next_url: Option<String>,
+    page: usize,
+}
+
+struct DriveUi {
+    service: DmService,
+    query: String,
+    view: DriveView,
+    search_artists: Vec<ArtistHit>,
+    selected: Option<usize>,
+    status: String,
+    error: bool,
+    loading: Option<String>,
+    downloads: HashMap<String, Option<f32>>,
+    intents: HashMap<String, DownloadIntent>,
+    pending_play: Option<String>,
+    scroll: f32,
+    initial_search: Option<String>,
+    initial_artist: Option<String>,
+    frames: u32,
+}
+
+impl DriveUi {
+    fn new(ctx: egui::Context) -> Self {
+        let query = std::env::var("MACAMP_DRIVE_SEARCH").unwrap_or_default();
+        Self {
+            service: DmService::new(ctx),
+            query: query.clone(),
+            view: DriveView::Empty,
+            search_artists: Vec::new(),
+            selected: None,
+            status: "ПОИСК ПО DRIVEMUSIC".to_owned(),
+            error: false,
+            loading: None,
+            downloads: HashMap::new(),
+            intents: HashMap::new(),
+            pending_play: None,
+            scroll: 0.0,
+            initial_search: (!query.trim().is_empty()).then_some(query),
+            initial_artist: std::env::var("MACAMP_DRIVE_ARTIST").ok(),
+            frames: 0,
+        }
+    }
+
+    fn start_search(&mut self, query: String) {
+        let query = query.trim().to_owned();
+        if query.is_empty() {
+            self.status = "ВВЕДИ ИМЯ ИСПОЛНИТЕЛЯ".to_owned();
+            self.error = true;
+            return;
+        }
+        self.loading = Some(format!("ПОИСК · {query}"));
+        self.error = false;
+        self.status = "ПОИСК…".to_owned();
+        self.service.search(&query);
+    }
+
+    fn open_artist(&mut self, url: String) {
+        self.loading = Some("ЗАГРУЗКА АРТИСТА…".to_owned());
+        self.error = false;
+        self.status = "ЗАГРУЗКА…".to_owned();
+        self.scroll = 0.0;
+        self.service.artist(&url, false);
+    }
+
+    fn load_more(&mut self) {
+        let DriveView::Artist(artist) = &self.view else {
+            return;
+        };
+        let Some(next) = artist.next_url.clone() else {
+            return;
+        };
+        self.loading = Some("ЗАГРУЗКА СТРАНИЦЫ…".to_owned());
+        self.error = false;
+        self.status = "ЗАГРУЗКА…".to_owned();
+        self.service.artist(&next, true);
+    }
 }
 
 pub struct MacAmpApp {
@@ -132,11 +252,11 @@ pub struct MacAmpApp {
     pending_zoom_resize: bool,
     restore_positions_after_zoom: bool,
     zoom_guard_until: Instant,
-    rects: [Option<Rect>; 3],
-    prev_rects: [Option<Rect>; 3],
+    rects: [Option<Rect>; WINDOW_COUNT],
+    prev_rects: [Option<Rect>; WINDOW_COUNT],
     geometry_ready: bool,
-    moving_last_frame: [bool; 3],
-    skip_motion_frames: [u8; 3],
+    moving_last_frame: [bool; WINDOW_COUNT],
+    skip_motion_frames: [u8; WINDOW_COUNT],
     show_eq: bool,
     eq_enabled: bool,
     eq_gains: [f32; 10],
@@ -144,6 +264,11 @@ pub struct MacAmpApp {
     eq_pos: Option<Pos2>,
     eq_just_opened: bool,
     eq_root: bool,
+    show_drive: bool,
+    drive_pos: Option<Pos2>,
+    drive_just_opened: bool,
+    drive_root: bool,
+    drive: DriveUi,
     playlist_scroll: f32,
     filter: String,
     drag_track: Option<usize>,
@@ -177,6 +302,7 @@ impl MacAmpApp {
             screenshot,
             playlist_root,
             eq_root,
+            drive_root,
         } = options;
         config.normalize();
         let skin = config.skin;
@@ -235,11 +361,11 @@ impl MacAmpApp {
             } else {
                 Instant::now()
             },
-            rects: [None; 3],
-            prev_rects: [None; 3],
+            rects: [None; WINDOW_COUNT],
+            prev_rects: [None; WINDOW_COUNT],
             geometry_ready: false,
-            moving_last_frame: [false; 3],
-            skip_motion_frames: [0; 3],
+            moving_last_frame: [false; WINDOW_COUNT],
+            skip_motion_frames: [0; WINDOW_COUNT],
             show_eq: config.show_eq,
             eq_enabled: config.eq_enabled,
             eq_gains: config.eq_gains,
@@ -247,6 +373,11 @@ impl MacAmpApp {
             eq_pos: config.eq_pos.map(|[x, y]| pos2(x, y)),
             eq_just_opened: true,
             eq_root,
+            show_drive: config.show_drive,
+            drive_pos: config.drive_pos.map(|[x, y]| pos2(x, y)),
+            drive_just_opened: true,
+            drive_root,
+            drive: DriveUi::new(cc.egui_ctx.clone()),
             config,
             skin,
             palette,
@@ -883,6 +1014,10 @@ impl MacAmpApp {
             ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(EQ_W, EQ_H)));
             return;
         }
+        if self.drive_root {
+            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(DRIVE_W, DRIVE_H)));
+            return;
+        }
         self.apply_main_size(ctx);
         if self.show_playlist {
             let size = self.playlist_size;
@@ -892,6 +1027,12 @@ impl MacAmpApp {
             ctx.send_viewport_cmd_to(
                 eq_viewport_id(),
                 ViewportCommand::InnerSize(vec2(EQ_W, EQ_H)),
+            );
+        }
+        if self.show_drive {
+            ctx.send_viewport_cmd_to(
+                drive_viewport_id(),
+                ViewportCommand::InnerSize(vec2(DRIVE_W, DRIVE_H)),
             );
         }
         if self.restore_positions_after_zoom {
@@ -912,6 +1053,14 @@ impl MacAmpApp {
                     ctx.send_viewport_cmd_to(eq_viewport_id(), ViewportCommand::OuterPosition(pos));
                 }
             }
+            if self.show_drive {
+                if let Some(pos) = self.drive_pos {
+                    ctx.send_viewport_cmd_to(
+                        drive_viewport_id(),
+                        ViewportCommand::OuterPosition(pos),
+                    );
+                }
+            }
         }
     }
 
@@ -921,12 +1070,13 @@ impl MacAmpApp {
             WINDOW_MAIN => ctx.send_viewport_cmd(command),
             WINDOW_PLAYLIST => ctx.send_viewport_cmd_to(playlist_viewport_id(), command),
             WINDOW_EQ => ctx.send_viewport_cmd_to(eq_viewport_id(), command),
+            WINDOW_DRIVE => ctx.send_viewport_cmd_to(drive_viewport_id(), command),
             _ => {}
         }
     }
 
     fn process_window_geometry(&mut self, ctx: &egui::Context) {
-        if self.playlist_root || self.eq_root {
+        if self.playlist_root || self.eq_root || self.drive_root {
             return;
         }
         if !self.geometry_ready || Instant::now() < self.zoom_guard_until {
@@ -934,15 +1084,15 @@ impl MacAmpApp {
             self.geometry_ready = true;
             // Dock freshly opened or re-scaled tool windows to the main window,
             // but never move the main window on the first settle.
-            self.moving_last_frame = [false, true, true];
-            self.skip_motion_frames = [0; 3];
+            self.moving_last_frame = [false, true, true, true];
+            self.skip_motion_frames = [0; WINDOW_COUNT];
             return;
         }
 
         let prev = self.prev_rects;
         let mut cur = self.rects;
-        let mut moved = [false; 3];
-        for slot in 0..3 {
+        let mut moved = [false; WINDOW_COUNT];
+        for slot in 0..WINDOW_COUNT {
             if self.skip_motion_frames[slot] > 0 {
                 self.skip_motion_frames[slot] -= 1;
                 continue;
@@ -958,7 +1108,7 @@ impl MacAmpApp {
             {
                 let delta = current_main.min - previous_main.min;
                 if delta.length_sq() > 0.01 {
-                    for slot in [WINDOW_PLAYLIST, WINDOW_EQ] {
+                    for slot in [WINDOW_PLAYLIST, WINDOW_EQ, WINDOW_DRIVE] {
                         if let (Some(current), Some(previous)) = (cur[slot], prev[slot]) {
                             if windows_attached(previous_main, previous) {
                                 let target = previous.min + delta;
@@ -973,7 +1123,7 @@ impl MacAmpApp {
         }
 
         // Once a window stops moving, pull it flush against a neighbour.
-        for slot in 0..3 {
+        for slot in 0..WINDOW_COUNT {
             if self.skip_motion_frames[slot] > 0 || !self.moving_last_frame[slot] || moved[slot] {
                 continue;
             }
@@ -996,7 +1146,7 @@ impl MacAmpApp {
             }
         }
 
-        for slot in 0..3 {
+        for slot in 0..WINDOW_COUNT {
             self.moving_last_frame[slot] = self.skip_motion_frames[slot] == 0 && moved[slot];
         }
         self.rects = cur;
@@ -1017,6 +1167,17 @@ impl MacAmpApp {
             self.eq_just_opened = true;
         } else {
             ctx.send_viewport_cmd_to(eq_viewport_id(), ViewportCommand::Close);
+        }
+        self.mark_dirty();
+    }
+
+    fn toggle_drive_window(&mut self, ctx: &egui::Context) {
+        self.show_drive = !self.show_drive;
+        self.config.show_drive = self.show_drive;
+        if self.show_drive {
+            self.drive_just_opened = true;
+        } else {
+            ctx.send_viewport_cmd_to(drive_viewport_id(), ViewportCommand::Close);
         }
         self.mark_dirty();
     }
@@ -1181,6 +1342,255 @@ impl MacAmpApp {
                 }
             }
         }
+    }
+
+    fn poll_drive(&mut self) {
+        for event in self.drive.service.poll() {
+            self.handle_drive_event(event);
+        }
+    }
+
+    fn handle_drive_event(&mut self, event: DmEvent) {
+        match event {
+            DmEvent::Search { query, result } => {
+                self.drive.loading = None;
+                match result {
+                    Ok(results) => {
+                        let SearchResults { artists, tracks } = results;
+                        self.drive.error = false;
+                        self.drive.scroll = 0.0;
+                        self.drive.selected = None;
+                        let open_url = self.drive.initial_artist.take().and_then(|slug| {
+                            artists
+                                .iter()
+                                .find(|artist| artist.url.contains(&slug))
+                                .map(|artist| artist.url.clone())
+                        });
+                        if !artists.is_empty() {
+                            let count = artists.len();
+                            self.drive.search_artists = artists.clone();
+                            self.drive.view = DriveView::Artists(artists);
+                            self.drive.status = format!("НАЙДЕНО АРТИСТОВ: {count}");
+                            if let Some(url) = open_url {
+                                self.drive.open_artist(url);
+                            }
+                        } else if !tracks.is_empty() {
+                            let count = tracks.len();
+                            self.drive.view = DriveView::Artist(ArtistView {
+                                name: format!("ПОИСК · {query}"),
+                                tracks,
+                                next_url: None,
+                                page: 1,
+                            });
+                            self.drive.selected = Some(0);
+                            self.drive.status = format!("НАЙДЕНО ТРЕКОВ: {count}");
+                        } else {
+                            self.drive.view = DriveView::Empty;
+                            self.drive.status = format!("НИЧЕГО НЕ НАЙДЕНО · {query}");
+                            self.drive.error = true;
+                        }
+                    }
+                    Err(error) => {
+                        self.drive.error = true;
+                        self.drive.status = error.clone();
+                        self.toast(format!("DriveMusic: {error}"), true);
+                    }
+                }
+            }
+            DmEvent::Artist { append, result } => {
+                self.drive.loading = None;
+                match result {
+                    Ok(page) => {
+                        self.drive.error = false;
+                        let ArtistPage {
+                            name,
+                            tracks,
+                            next_url,
+                        } = page;
+                        let mut page_tracks = Some(tracks);
+                        let mut page_next = next_url;
+                        let mut page_name = Some(name);
+                        let mut appended = None;
+                        if append {
+                            if let DriveView::Artist(artist) = &mut self.drive.view {
+                                if let Some(tracks) = page_tracks.take() {
+                                    artist.tracks.extend(tracks);
+                                }
+                                artist.next_url = page_next.take();
+                                artist.page += 1;
+                                if artist.name.trim().is_empty() {
+                                    if let Some(name) = page_name.take() {
+                                        artist.name = name;
+                                    }
+                                }
+                                appended = Some(artist.tracks.len());
+                            }
+                        }
+                        if let Some(count) = appended {
+                            self.drive.status = format!("ЗАГРУЖЕНО: {count}");
+                        } else {
+                            let auto_play = std::env::var_os("MACAMP_DRIVE_PLAY").is_some();
+                            let tracks = page_tracks.unwrap_or_default();
+                            let next_url = page_next;
+                            let count = tracks.len();
+                            let name = page_name.take().unwrap_or_default();
+                            let name = if name.trim().is_empty() {
+                                "РЕЗУЛЬТАТЫ".to_owned()
+                            } else {
+                                name
+                            };
+                            self.drive.view = DriveView::Artist(ArtistView {
+                                name,
+                                tracks,
+                                next_url,
+                                page: 1,
+                            });
+                            self.drive.selected = (count > 0).then_some(0);
+                            self.drive.scroll = 0.0;
+                            self.drive.status = if count == 0 {
+                                "НЕТ ТРЕКОВ".to_owned()
+                            } else {
+                                format!("ТРЕКОВ: {count}")
+                            };
+                            if auto_play {
+                                let first = if let DriveView::Artist(artist) = &self.drive.view {
+                                    artist.tracks.first().cloned()
+                                } else {
+                                    None
+                                };
+                                if let Some(track) = first {
+                                    self.request_remote(track, DownloadIntent::Play);
+                                }
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        self.drive.error = true;
+                        self.drive.status = error.clone();
+                        self.toast(format!("DriveMusic: {error}"), true);
+                    }
+                }
+            }
+            DmEvent::Progress { key, fraction } => {
+                if let Some(slot) = self.drive.downloads.get_mut(&key) {
+                    *slot = fraction;
+                }
+            }
+            DmEvent::Downloaded {
+                track,
+                path,
+                result,
+            } => {
+                let key = track.cache_key.clone();
+                self.drive.downloads.remove(&key);
+                self.drive.intents.remove(&key);
+                let should_play = self.drive.pending_play.as_deref() == Some(key.as_str());
+                if should_play {
+                    self.drive.pending_play = None;
+                }
+                match result {
+                    Ok(()) => {
+                        let label = remote_title(&track);
+                        let index =
+                            self.ensure_track_index(drivemusic::track_from_file(&track, path));
+                        if should_play {
+                            self.selected = Some(index);
+                            if self.start_track_index(index, Duration::ZERO, true) {
+                                self.drive.status = format!("ИГРАЮ · {label}");
+                            }
+                        } else {
+                            self.selected = Some(index);
+                            self.drive.status = format!("ДОБАВЛЕНО · {label}");
+                            if !self.show_drive {
+                                self.toast(format!("DriveMusic · добавлено: {label}"), false);
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        self.drive.error = true;
+                        self.drive.status = format!("ОШИБКА · {error}");
+                        self.toast(format!("DriveMusic: {error}"), true);
+                    }
+                }
+            }
+        }
+    }
+
+    fn ensure_track_index(&mut self, track: Track) -> usize {
+        if let Some(index) = self
+            .config
+            .tracks
+            .iter()
+            .position(|existing| existing.path == track.path)
+        {
+            return index;
+        }
+        let index = self.config.tracks.len();
+        self.config.tracks.push(track);
+        self.sync_order_after_add(index);
+        if self.selected.is_none() {
+            self.selected = Some(index);
+        }
+        self.mark_dirty();
+        index
+    }
+
+    fn request_remote(&mut self, remote: RemoteTrack, intent: DownloadIntent) {
+        let key = remote.cache_key.clone();
+        let label = remote_title(&remote);
+        self.drive.error = false;
+        if let Some(track) = cached_track(&remote) {
+            let index = self.ensure_track_index(track);
+            self.selected = Some(index);
+            if intent == DownloadIntent::Play {
+                self.drive.pending_play = None;
+                if self.start_track_index(index, Duration::ZERO, true) {
+                    self.drive.status = format!("ИГРАЮ · {label}");
+                }
+            } else {
+                self.drive.status = format!("УЖЕ В КЭШЕ · {label}");
+                if !self.show_drive {
+                    self.toast(format!("DriveMusic · добавлено: {label}"), false);
+                }
+            }
+            return;
+        }
+        if self.drive.downloads.contains_key(&key) {
+            if intent == DownloadIntent::Play {
+                self.drive.pending_play = Some(key.clone());
+                self.drive.intents.insert(key, DownloadIntent::Play);
+            }
+            self.drive.status = format!("УЖЕ СКАЧИВАЕТСЯ · {label}");
+            return;
+        }
+        let Some(path) = cache_path(&remote) else {
+            self.toast("DriveMusic: нет каталога для кэша", true);
+            return;
+        };
+        self.drive.downloads.insert(key.clone(), None);
+        self.drive.intents.insert(key.clone(), intent);
+        if intent == DownloadIntent::Play {
+            self.drive.pending_play = Some(key);
+            self.drive.status = format!("СКАЧИВАНИЕ ДЛЯ PLAY · {label}");
+        } else {
+            self.drive.status = format!("СКАЧИВАНИЕ · {label}");
+        }
+        self.drive.service.download(remote, path);
+    }
+
+    fn add_all_remote(&mut self) {
+        let tracks = match &self.drive.view {
+            DriveView::Artist(artist) => artist.tracks.clone(),
+            _ => return,
+        };
+        if tracks.is_empty() {
+            return;
+        }
+        let count = tracks.len();
+        for track in tracks {
+            self.request_remote(track, DownloadIntent::Add);
+        }
+        self.drive.status = format!("В ОЧЕРЕДЬ: {count}");
     }
 
     fn ensure_lookahead(&mut self) {
@@ -1401,12 +1811,14 @@ impl MacAmpApp {
         self.config.shaded = self.shaded;
         self.config.double_size = self.double_size;
         self.config.playlist_size = [self.playlist_size.x, self.playlist_size.y];
+        self.config.show_drive = self.show_drive;
         self.config.show_eq = self.show_eq;
         self.config.eq_enabled = self.eq_enabled;
         self.config.eq_gains = self.eq_gains;
         self.config.eq_preset = self.eq_preset;
         self.config.main_pos = self.main_pos.map(|pos| [pos.x, pos.y]);
         self.config.playlist_pos = self.playlist_pos.map(|pos| [pos.x, pos.y]);
+        self.config.drive_pos = self.drive_pos.map(|pos| [pos.x, pos.y]);
         self.config.eq_pos = self.eq_pos.map(|pos| [pos.x, pos.y]);
         if let Err(error) = self.config.save() {
             tracing::warn!("could not save config: {error}");
@@ -1439,6 +1851,7 @@ impl MacAmpApp {
         let mut select_delta = 0_i32;
         let mut double_size = false;
         let mut clear_filter = false;
+        let mut toggle_drive = false;
 
         ctx.input_mut(|input| {
             if input.consume_key(Modifiers::COMMAND, Key::O) {
@@ -1446,6 +1859,9 @@ impl MacAmpApp {
             }
             if input.consume_key(Modifiers::COMMAND, Key::D) {
                 double_size = true;
+            }
+            if input.consume_key(Modifiers::COMMAND, Key::L) {
+                toggle_drive = true;
             }
             if input.consume_key(Modifiers::COMMAND | Modifiers::SHIFT, Key::O) {
                 open_folder = true;
@@ -1546,6 +1962,9 @@ impl MacAmpApp {
         if double_size {
             self.toggle_double_size(ctx);
         }
+        if toggle_drive {
+            self.toggle_drive_window(ctx);
+        }
         if clear_filter && !self.filter.is_empty() {
             self.filter.clear();
             self.playlist_scroll = 0.0;
@@ -1604,7 +2023,12 @@ impl MacAmpApp {
         let Some(path) = self.screenshot.clone() else {
             return;
         };
-        if self.screenshot_requested || self.created_at.elapsed() < Duration::from_secs(2) {
+        let delay = std::env::var("MACAMP_SCREENSHOT_DELAY")
+            .ok()
+            .and_then(|value| value.parse::<f32>().ok())
+            .map(Duration::from_secs_f32)
+            .unwrap_or(Duration::from_secs(2));
+        if self.screenshot_requested || self.created_at.elapsed() < delay {
             return;
         }
         self.screenshot_requested = true;
@@ -1612,6 +2036,7 @@ impl MacAmpApp {
         ctx.request_screenshot(move |image| {
             save_color_image(&path, &image);
         });
+        ctx.request_repaint();
     }
 
     fn draw_main(&mut self, ui: &mut Ui) {
@@ -1744,7 +2169,17 @@ impl MacAmpApp {
         let toggle_w = 34.0;
         let toggle_h = 24.0;
         let toggle_y = controls_y + (button_h - toggle_h) * 0.5;
-        let mut toggle_x = screen.right() - toggle_w * 4.0 - 9.0;
+        let mut toggle_x = screen.right() - toggle_w * 5.0 - 12.0;
+        let drive_toggle = toggle_button(
+            ui,
+            Rect::from_min_size(pos2(toggle_x, toggle_y), vec2(toggle_w, toggle_h)),
+            "toggle_drive",
+            &p,
+            "DRV",
+            self.show_drive,
+            "DriveMusic · поиск артистов и песен",
+        );
+        toggle_x += toggle_w + 3.0;
         let eq_toggle = toggle_button(
             ui,
             Rect::from_min_size(pos2(toggle_x, toggle_y), vec2(toggle_w, toggle_h)),
@@ -1799,6 +2234,9 @@ impl MacAmpApp {
         }
         if next.clicked() {
             self.next_track();
+        }
+        if drive_toggle.clicked() {
+            self.toggle_drive_window(ui.ctx());
         }
         if eq_toggle.clicked() {
             self.toggle_eq_window(ui.ctx());
@@ -2895,6 +3333,547 @@ impl MacAmpApp {
         self.handle_drops(ui.ctx());
     }
 
+    fn draw_drive(&mut self, ui: &mut Ui) {
+        self.drive.frames = self.drive.frames.saturating_add(1);
+        if self.drive.frames == 1 || self.drive.frames.is_multiple_of(120) {
+            tracing::info!("drive ui frame {}", self.drive.frames);
+        }
+        let outer_rect = ui.ctx().input(|input| input.viewport().outer_rect);
+        self.rects[WINDOW_DRIVE] = outer_rect;
+        let p = self.palette;
+        let rect = ui.max_rect();
+        self.draw_window_base(ui, rect, "DRIVEMUSIC");
+
+        let title_rect = Rect::from_min_size(rect.min, vec2(rect.width(), TITLE_H));
+        let drag_rect =
+            Rect::from_min_max(rect.min, pos2(rect.right() - 28.0, rect.top() + TITLE_H));
+        let drag = ui.interact(
+            drag_rect,
+            Id::unique("drive_titlebar"),
+            Sense::click_and_drag(),
+        );
+        if drag.drag_started() {
+            ui.ctx().send_viewport_cmd(ViewportCommand::StartDrag);
+        }
+        let close_rect = Rect::from_min_size(pos2(rect.right() - 18.0, 6.0), vec2(16.0, 16.0));
+        if tiny_title_button(ui, close_rect, "drive_close", &p, Icon::Close).clicked() {
+            self.show_drive = false;
+            self.config.show_drive = false;
+            self.mark_dirty();
+        }
+        if ui.ctx().input(|input| input.viewport().close_requested()) {
+            self.show_drive = false;
+            self.config.show_drive = false;
+            self.mark_dirty();
+        }
+        ui.painter().text(
+            pos2(rect.right() - 26.0, rect.top() + 9.0),
+            Align2::RIGHT_TOP,
+            "ONLINE",
+            p.mono(7.5),
+            p.dim,
+        );
+        if !self.drive_root && Instant::now() >= self.zoom_guard_until {
+            if let Some(outer) = outer_rect {
+                let pos = outer.min;
+                if self
+                    .drive_pos
+                    .map(|old| old.distance(pos) > 0.5)
+                    .unwrap_or(true)
+                {
+                    self.drive_pos = Some(pos);
+                    self.mark_dirty();
+                }
+            }
+        }
+
+        let body = Rect::from_min_max(
+            pos2(rect.left() + 5.0, title_rect.bottom() + 5.0),
+            pos2(rect.right() - 5.0, rect.bottom() - 5.0),
+        );
+        let search_row = Rect::from_min_size(body.min, vec2(body.width(), 24.0));
+        ui.painter().text(
+            pos2(search_row.left() + 4.0, search_row.center().y),
+            Align2::LEFT_CENTER,
+            "FIND",
+            p.text_font(6.5),
+            p.dim,
+        );
+        let field = Rect::from_min_max(
+            pos2(search_row.left() + 32.0, search_row.top()),
+            pos2(search_row.right() - 72.0, search_row.bottom()),
+        );
+        inset(ui.painter(), field, p.inset, p.edge_lo, p.edge_hi);
+        let text_rect = Rect::from_min_max(field.min + vec2(4.0, 2.0), field.max - vec2(4.0, 2.0));
+        let editor = egui::TextEdit::singleline(&mut self.drive.query)
+            .font(p.text_font(8.5))
+            .text_color(p.text)
+            .hint_text("исполнитель или трек")
+            .frame(egui::Frame::NONE)
+            .margin(egui::Margin::ZERO)
+            .desired_width(text_rect.width());
+        let edit_response = ui
+            .scope(|ui| {
+                ui.style_mut().visuals.selection.bg_fill = p.select;
+                ui.style_mut().visuals.selection.stroke = Stroke::new(1.0, p.led);
+                ui.style_mut().visuals.widgets.active.bg_fill = Color32::TRANSPARENT;
+                ui.style_mut().visuals.widgets.inactive.bg_fill = Color32::TRANSPARENT;
+                ui.style_mut().visuals.widgets.hovered.bg_fill = Color32::TRANSPARENT;
+                ui.put(text_rect, editor)
+            })
+            .inner;
+        let enter = ui.input(|input| input.key_pressed(Key::Enter))
+            && (edit_response.has_focus() || edit_response.lost_focus());
+        let find_rect = Rect::from_min_size(
+            pos2(search_row.right() - 66.0, search_row.top() + 1.0),
+            vec2(64.0, 22.0),
+        );
+        let find = classic_button(
+            ui,
+            find_rect,
+            "dm_find",
+            &p,
+            None,
+            Some("FIND"),
+            false,
+            true,
+        );
+        let search_now = find.clicked() || enter;
+
+        let header = Rect::from_min_size(
+            pos2(body.left(), search_row.bottom() + 5.0),
+            vec2(body.width(), 14.0),
+        );
+        let footer_h = 16.0;
+        let footer = Rect::from_min_size(
+            pos2(body.left(), body.bottom() - footer_h),
+            vec2(body.width(), footer_h),
+        );
+        let buttons_y = footer.top() - 28.0;
+        let list = Rect::from_min_max(
+            pos2(body.left(), header.bottom() + 4.0),
+            pos2(body.right(), buttons_y - 4.0),
+        );
+        inset(ui.painter(), list, p.inset, p.edge_hi, p.edge_lo);
+        let scrollbar_w = 10.0;
+        let list_inner = Rect::from_min_max(
+            list.min + vec2(1.0, 1.0),
+            pos2(list.right() - scrollbar_w - 1.0, list.bottom() - 1.0),
+        );
+
+        let mut selected = self.drive.selected;
+        let mut scroll = self.drive.scroll;
+        let mut action = DriveAction::None;
+
+        {
+            let view = &self.drive.view;
+            let downloads = &self.drive.downloads;
+            let count = match view {
+                DriveView::Empty => 0,
+                DriveView::Artists(artists) => artists.len(),
+                DriveView::Artist(artist) => artist.tracks.len(),
+            };
+            let (heading, count_text) = match view {
+                DriveView::Empty => ("DRIVEMUSIC", "ONLINE".to_owned()),
+                DriveView::Artists(artists) => {
+                    ("ИСПОЛНИТЕЛИ", format!("{} АРТИСТОВ", artists.len()))
+                }
+                DriveView::Artist(artist) => (
+                    artist.name.as_str(),
+                    format!("{} ТРЕКОВ · СТР. {}", artist.tracks.len(), artist.page),
+                ),
+            };
+            ui.painter().text(
+                pos2(header.left(), header.top()),
+                Align2::LEFT_TOP,
+                heading,
+                p.mono(8.0),
+                p.text,
+            );
+            ui.painter().text(
+                pos2(header.right(), header.top()),
+                Align2::RIGHT_TOP,
+                count_text,
+                p.mono(7.5),
+                p.dim,
+            );
+
+            let content_h = count as f32 * ROW_H;
+            let view_h = list_inner.height();
+            let max_scroll = (content_h - view_h).max(0.0);
+            if ui.rect_contains_pointer(list) {
+                let wheel = ui.input(|input| input.smooth_scroll_delta.y);
+                if wheel != 0.0 {
+                    scroll -= wheel;
+                }
+            }
+            scroll = scroll.clamp(0.0, max_scroll);
+
+            if count == 0 {
+                let message = if self.drive.loading.is_some() {
+                    "ЗАГРУЗКА…"
+                } else if matches!(view, DriveView::Empty) {
+                    "ВВЕДИ ИМЯ ИСПОЛНИТЕЛЯ И НАЖМИ FIND"
+                } else {
+                    "ПУСТО"
+                };
+                ui.painter().text(
+                    list_inner.center(),
+                    Align2::CENTER_CENTER,
+                    message,
+                    p.text_font(9.0),
+                    p.led.gamma_multiply(0.3),
+                );
+            } else {
+                let first = (scroll / ROW_H).floor().max(0.0) as usize;
+                let visible_rows = (view_h / ROW_H).ceil() as usize + 1;
+                let end = (first + visible_rows).min(count);
+                let list_painter = ui.painter().with_clip_rect(list_inner);
+                for index in first..end {
+                    let y = list_inner.top() + index as f32 * ROW_H - scroll;
+                    let row = Rect::from_min_size(
+                        pos2(list_inner.left(), y),
+                        vec2(list_inner.width(), ROW_H),
+                    );
+                    if row.bottom() < list_inner.top() || row.top() > list_inner.bottom() {
+                        continue;
+                    }
+                    let response = ui.interact(
+                        row,
+                        Id::unique(("dm_row", matches!(view, DriveView::Artist(_)), index)),
+                        Sense::click(),
+                    );
+                    if response.clicked() {
+                        selected = Some(index);
+                    }
+                    if response.double_clicked() {
+                        action = match view {
+                            DriveView::Artists(_) => DriveAction::Open(index),
+                            DriveView::Artist(_) => DriveAction::Play(index),
+                            DriveView::Empty => DriveAction::None,
+                        };
+                    }
+                    let is_selected = selected == Some(index);
+                    let hovered = response.hovered();
+                    if hovered {
+                        ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
+                    }
+                    let bg = if is_selected {
+                        lerp_color(p.face_dark, p.select, 0.45)
+                    } else if hovered {
+                        lerp_color(p.inset, p.face_dark, 0.4)
+                    } else if index % 2 == 0 {
+                        p.screen
+                    } else {
+                        p.inset
+                    };
+                    list_painter.rect_filled(row, 0.0, bg);
+                    list_painter.text(
+                        pos2(row.left() + 5.0, row.center().y),
+                        Align2::LEFT_CENTER,
+                        format!("{:02}", index + 1),
+                        p.mono(8.0),
+                        if is_selected { p.led } else { p.dim },
+                    );
+                    match view {
+                        DriveView::Artists(artists) => {
+                            let artist = &artists[index];
+                            let name_rect =
+                                Rect::from_min_max(pos2(row.left() + 32.0, row.top()), row.max);
+                            list_painter.with_clip_rect(name_rect).text(
+                                pos2(name_rect.left(), row.center().y),
+                                Align2::LEFT_CENTER,
+                                &artist.name,
+                                p.text_font(9.5),
+                                if is_selected { p.select_text } else { p.text },
+                            );
+                            if hovered {
+                                response.on_hover_text(format!(
+                                    "{}\nдвойной клик — открыть артиста",
+                                    artist.name
+                                ));
+                            }
+                        }
+                        DriveView::Artist(artist_view) => {
+                            let track = &artist_view.tracks[index];
+                            let title_rect = Rect::from_min_max(
+                                pos2(row.left() + 32.0, row.top()),
+                                pos2(row.right() - 100.0, row.bottom()),
+                            );
+                            list_painter.with_clip_rect(title_rect).text(
+                                pos2(title_rect.left(), row.center().y),
+                                Align2::LEFT_CENTER,
+                                remote_title(track),
+                                p.text_font(9.0),
+                                if is_selected { p.select_text } else { p.text },
+                            );
+                            let duration = track
+                                .duration_ms
+                                .map(|ms| format_time(Duration::from_millis(ms)))
+                                .unwrap_or_else(|| "--:--".to_owned());
+                            list_painter.text(
+                                pos2(row.right() - 52.0, row.center().y),
+                                Align2::RIGHT_CENTER,
+                                duration,
+                                p.mono(8.0),
+                                if is_selected { p.select_text } else { p.dim },
+                            );
+                            let status = if let Some(progress) = downloads.get(&track.cache_key) {
+                                (
+                                    progress
+                                        .map(|fraction| format!("{}%", (fraction * 100.0) as u32))
+                                        .unwrap_or_else(|| "…".to_owned()),
+                                    p.amber,
+                                )
+                            } else if is_cached(track) {
+                                ("✓".to_owned(), p.led)
+                            } else {
+                                (String::new(), p.dim)
+                            };
+                            if !status.0.is_empty() {
+                                list_painter.text(
+                                    pos2(row.right() - 4.0, row.center().y),
+                                    Align2::RIGHT_CENTER,
+                                    status.0,
+                                    p.mono(7.5),
+                                    status.1,
+                                );
+                            }
+                            if hovered {
+                                let mut tip = remote_title(track);
+                                tip.push_str("\nдвойной клик — играть");
+                                response.on_hover_text(tip);
+                            }
+                        }
+                        DriveView::Empty => {}
+                    }
+                }
+                if content_h > view_h + 0.5 {
+                    let scrollbar = Rect::from_min_max(
+                        pos2(list.right() - scrollbar_w - 2.0, list.top() + 2.0),
+                        pos2(list.right() - 2.0, list.bottom() - 2.0),
+                    );
+                    let sb_response =
+                        draw_scrollbar(ui, scrollbar, "dm_scroll", &p, scroll, content_h, view_h);
+                    if sb_response.dragged() || sb_response.clicked() {
+                        if let Some(t) = scroll_to_value(ui, "dm_scroll") {
+                            scroll = t * max_scroll;
+                        }
+                    }
+                }
+            }
+
+            // Keyboard navigation, unless the search field has focus.
+            if !ui.ctx().egui_wants_keyboard_input() && count > 0 {
+                let down = ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::ArrowDown));
+                let up = ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::ArrowUp));
+                if down || up {
+                    let current = selected.unwrap_or(0) as i32 + if down { 1 } else { -1 };
+                    selected = Some(current.clamp(0, count as i32 - 1) as usize);
+                    let top = selected.unwrap() as f32 * ROW_H;
+                    if top < scroll {
+                        scroll = top;
+                    } else if top + ROW_H > scroll + view_h {
+                        scroll = top + ROW_H - view_h;
+                    }
+                    scroll = scroll.clamp(0.0, max_scroll);
+                }
+                if ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Enter)) {
+                    if let Some(index) = selected {
+                        action = match view {
+                            DriveView::Artists(_) => DriveAction::Open(index),
+                            DriveView::Artist(_) => DriveAction::Play(index),
+                            DriveView::Empty => DriveAction::None,
+                        };
+                    }
+                }
+            }
+
+            // Action bar.
+            let mut x = body.left();
+            let button_h = 24.0;
+            match view {
+                DriveView::Empty => {}
+                DriveView::Artists(_) => {
+                    let enabled = selected.is_some();
+                    if classic_button(
+                        ui,
+                        Rect::from_min_size(pos2(x, buttons_y), vec2(76.0, button_h)),
+                        "dm_open",
+                        &p,
+                        None,
+                        Some("OPEN"),
+                        false,
+                        enabled,
+                    )
+                    .clicked()
+                    {
+                        if let Some(index) = selected {
+                            action = DriveAction::Open(index);
+                        }
+                    }
+                }
+                DriveView::Artist(artist) => {
+                    if classic_button(
+                        ui,
+                        Rect::from_min_size(pos2(x, buttons_y), vec2(58.0, button_h)),
+                        "dm_back",
+                        &p,
+                        None,
+                        Some("BACK"),
+                        false,
+                        true,
+                    )
+                    .clicked()
+                    {
+                        action = DriveAction::Back;
+                    }
+                    x += 62.0;
+                    let enabled = selected.is_some_and(|index| index < artist.tracks.len());
+                    if classic_button(
+                        ui,
+                        Rect::from_min_size(pos2(x, buttons_y), vec2(62.0, button_h)),
+                        "dm_play",
+                        &p,
+                        None,
+                        Some("PLAY"),
+                        false,
+                        enabled,
+                    )
+                    .clicked()
+                    {
+                        if let Some(index) = selected {
+                            action = DriveAction::Play(index);
+                        }
+                    }
+                    x += 66.0;
+                    if classic_button(
+                        ui,
+                        Rect::from_min_size(pos2(x, buttons_y), vec2(54.0, button_h)),
+                        "dm_add",
+                        &p,
+                        None,
+                        Some("ADD"),
+                        false,
+                        enabled,
+                    )
+                    .clicked()
+                    {
+                        if let Some(index) = selected {
+                            action = DriveAction::Add(index);
+                        }
+                    }
+                    x += 58.0;
+                    if classic_button(
+                        ui,
+                        Rect::from_min_size(pos2(x, buttons_y), vec2(74.0, button_h)),
+                        "dm_add_all",
+                        &p,
+                        None,
+                        Some("ADD ALL"),
+                        false,
+                        !artist.tracks.is_empty(),
+                    )
+                    .clicked()
+                    {
+                        action = DriveAction::AddAll;
+                    }
+                    x += 78.0;
+                    if artist.next_url.is_some()
+                        && classic_button(
+                            ui,
+                            Rect::from_min_size(pos2(x, buttons_y), vec2(64.0, button_h)),
+                            "dm_more",
+                            &p,
+                            None,
+                            Some("MORE"),
+                            false,
+                            self.drive.loading.is_none(),
+                        )
+                        .clicked()
+                    {
+                        action = DriveAction::LoadMore;
+                    }
+                }
+            }
+        }
+
+        self.drive.selected = selected;
+        self.drive.scroll = scroll;
+
+        ui.painter()
+            .with_clip_rect(Rect::from_min_max(
+                footer.min,
+                pos2(footer.right() - 44.0, footer.bottom()),
+            ))
+            .text(
+                pos2(footer.left() + 2.0, footer.center().y),
+                Align2::LEFT_CENTER,
+                self.drive
+                    .loading
+                    .as_deref()
+                    .unwrap_or(self.drive.status.as_str()),
+                p.text_font(7.0),
+                if self.drive.error {
+                    p.red
+                } else if self.drive.loading.is_some() {
+                    p.amber
+                } else {
+                    p.dim
+                },
+            );
+        if !self.drive.downloads.is_empty() {
+            ui.painter().text(
+                pos2(footer.right() - 2.0, footer.center().y),
+                Align2::RIGHT_CENTER,
+                format!("↓ {}", self.drive.downloads.len()),
+                p.mono(8.0),
+                p.amber,
+            );
+        }
+
+        if search_now {
+            self.drive.start_search(self.drive.query.clone());
+        }
+        match action {
+            DriveAction::None => {}
+            DriveAction::Open(index) => {
+                if let DriveView::Artists(artists) = &self.drive.view {
+                    if let Some(artist) = artists.get(index) {
+                        let url = artist.url.clone();
+                        self.drive.open_artist(url);
+                    }
+                }
+            }
+            DriveAction::Play(index) | DriveAction::Add(index) => {
+                if let DriveView::Artist(artist) = &self.drive.view {
+                    if let Some(track) = artist.tracks.get(index).cloned() {
+                        let intent = match action {
+                            DriveAction::Play(_) => DownloadIntent::Play,
+                            _ => DownloadIntent::Add,
+                        };
+                        self.request_remote(track, intent);
+                    }
+                }
+            }
+            DriveAction::AddAll => self.add_all_remote(),
+            DriveAction::LoadMore => self.drive.load_more(),
+            DriveAction::Back => {
+                self.drive.selected = None;
+                self.drive.scroll = 0.0;
+                self.drive.view = if self.drive.search_artists.is_empty() {
+                    DriveView::Empty
+                } else {
+                    DriveView::Artists(self.drive.search_artists.clone())
+                };
+                self.drive.status = "АРТИСТЫ".to_owned();
+                self.drive.error = false;
+            }
+        }
+
+        self.handle_keys(ui.ctx(), false);
+    }
+
     fn draw_eq(&mut self, ui: &mut Ui) {
         let outer_rect = ui.ctx().input(|input| input.viewport().outer_rect);
         self.rects[WINDOW_EQ] = outer_rect;
@@ -3141,6 +4120,9 @@ impl MacAmpApp {
                 if menu_row(ui, &p, "Playlist", Some(self.show_playlist), true).clicked() {
                     action = Some(MenuAction::Playlist);
                 }
+                if menu_row(ui, &p, "DriveMusic", Some(self.show_drive), true).clicked() {
+                    action = Some(MenuAction::DriveMusic);
+                }
                 menu_separator(ui, &p);
                 menu_section(ui, &p, "FILES");
                 if menu_row(ui, &p, "Open files…", None, true).clicked() {
@@ -3165,6 +4147,7 @@ impl MacAmpApp {
                 MenuAction::Windowshade => self.toggle_shade(ctx),
                 MenuAction::DoubleSize => self.toggle_double_size(ctx),
                 MenuAction::Playlist => self.toggle_playlist(ctx),
+                MenuAction::DriveMusic => self.toggle_drive_window(ctx),
                 MenuAction::OpenFiles => self.open_files(),
                 MenuAction::OpenFolder => self.open_folder(),
                 MenuAction::About => {
@@ -3178,6 +4161,34 @@ impl MacAmpApp {
         }
         if self.toast.is_some() {
             ctx.request_repaint_after(Duration::from_millis(250));
+        }
+    }
+
+    fn drive_position(&self, ctx: &egui::Context) -> Pos2 {
+        if let Some(pos) = self.drive_pos {
+            return pos;
+        }
+        let main_rect = self.rects[WINDOW_MAIN]
+            .or_else(|| ctx.input(|input| input.viewport().outer_rect))
+            .unwrap_or_else(|| Rect::from_min_size(pos2(80.0, 80.0), vec2(MAIN_W, MAIN_H)));
+        let anchor = if self.show_playlist {
+            self.rects[WINDOW_PLAYLIST].unwrap_or(main_rect)
+        } else {
+            main_rect
+        };
+        let monitor = ctx
+            .input(|input| input.viewport().monitor_size)
+            .unwrap_or(vec2(1440.0, 900.0));
+        let x = anchor.right();
+        let y = anchor.top().min((monitor.y - DRIVE_H - 2.0).max(0.0));
+        if x + DRIVE_W <= monitor.x {
+            pos2(x, y)
+        } else if main_rect.top() + MAIN_H + DRIVE_H <= monitor.y {
+            pos2(main_rect.left(), main_rect.top() + MAIN_H)
+        } else if anchor.top() + anchor.height() + DRIVE_H <= monitor.y {
+            pos2(anchor.left(), anchor.top() + anchor.height())
+        } else {
+            pos2((main_rect.left() - DRIVE_W).max(0.0), y)
         }
     }
 
@@ -3237,6 +4248,10 @@ impl eframe::App for MacAmpApp {
         self.poll_media(ctx);
         self.handle_drops(ctx);
         self.poll_loader();
+        if let Some(query) = self.drive.initial_search.take() {
+            self.drive.start_search(query);
+        }
+        self.poll_drive();
         self.sync_audio();
         self.sync_window_state(ctx);
         self.autosave();
@@ -3261,13 +4276,17 @@ impl eframe::App for MacAmpApp {
     }
 
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
-        self.rects = [None; 3];
+        self.rects = [None; WINDOW_COUNT];
         if self.eq_root {
             self.draw_eq(ui);
             return;
         }
         if self.playlist_root {
             self.draw_playlist(ui);
+            return;
+        }
+        if self.drive_root {
+            self.draw_drive(ui);
             return;
         }
         self.draw_main(ui);
@@ -3316,6 +4335,25 @@ impl eframe::App for MacAmpApp {
             ui.ctx()
                 .show_viewport_immediate(eq_viewport_id(), builder, |ui, _class| {
                     self.draw_eq(ui);
+                });
+        }
+
+        if self.show_drive {
+            let position = self.drive_position(ui.ctx());
+            let mut builder = ViewportBuilder::default()
+                .with_title("MacAmp · DriveMusic")
+                .with_decorations(false)
+                .with_resizable(false)
+                .with_inner_size([DRIVE_W, DRIVE_H])
+                .with_min_inner_size([DRIVE_W, DRIVE_H])
+                .with_max_inner_size([DRIVE_W, DRIVE_H]);
+            if self.drive_just_opened {
+                builder = builder.with_position(position);
+            }
+            self.drive_just_opened = false;
+            ui.ctx()
+                .show_viewport_immediate(drive_viewport_id(), builder, |ui, _class| {
+                    self.draw_drive(ui);
                 });
         }
 
@@ -3385,6 +4423,14 @@ fn menu_row(
         if enabled { p.text } else { p.dim },
     );
     response
+}
+
+fn remote_title(track: &RemoteTrack) -> String {
+    if track.artist.trim().is_empty() {
+        track.title.clone()
+    } else {
+        format!("{} — {}", track.artist, track.title)
+    }
 }
 
 fn format_time(duration: Duration) -> String {
