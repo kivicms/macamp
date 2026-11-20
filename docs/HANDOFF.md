@@ -8,8 +8,9 @@ Winamp, а не минималистичный плеер. «Хотелки» п
 
 Рабочий плеер на Rust/egui с классическим интерфейсом, реальным аудио, gapless-
 очередью, эквалайзером, плейлистом, скинами, session restore, Now Playing,
-windowshade, double size и стыковкой окон, плюс подписанный ad-hoc `.app`. Это
-уже не спайк. `fmt`/`clippy -D warnings` чистые, 14 тестов зелёные.
+windowshade, double size, стыковка окон, фильтр и drag-reorder в плейлисте,
+плюс подписанный ad-hoc `.app`. Это уже не спайк. `fmt`/`clippy -D warnings`
+чистые, 16 тестов зелёные.
 
 ## Проверки перед продолжением
 
@@ -22,7 +23,7 @@ cargo build
 ./scripts/bundle_macos.sh
 ```
 
-Ожидаемо: 14 тестов, `dist/MacAmp.app`, release-бинарник ~16 МБ.
+Ожидаемо: 16 тестов, `dist/MacAmp.app`, release-бинарник ~16 МБ.
 Единственный внешний warning: `block 0.1.6` (future-incompat) из souvlaki;
 на текущем Rust 1.100 собирается. Наш код warning-free.
 
@@ -128,6 +129,10 @@ open dist/MacAmp.app
   трек с текущей позиции (`refresh_order_playback`), чтобы старый lookahead
   не сыграл один раз по устаревшему порядку. При паузе lookahead сбрасывается,
   при возврате play он снова ставится по новому порядку.
+- Drag-reorder делает `move_track(from, to)`: трек переставляется в
+  `config.tracks`, все индексы в `current`/`selected`/`play_order`
+  переназначаются через `remap_after_move`, затем `refresh_order_playback`
+  перезапускает текущий трек, если был уже добавлен lookahead.
 - Удаление из плейлиста запрещено, пока `started` (включая паузу). Это
   осознанное упрощение; при реализации удаления во время игры нужно
   перестраивать очередь/позиции и lookahead.
@@ -170,8 +175,12 @@ roundtrip. Окно позиций сохраняется из viewport `outer_r
 - Окна стыкуются краями; главное окно перемещает пристёгнутые playlist/EQ.
 - Playlist: ADD/FOLDER/REM, теги, duration, current/selected, двойной клик,
   wheel, кастомный скроллбар (скрывается при коротком списке), total duration,
-  resize grip с сохранением размера. Удаление только когда воспроизведение
-  не идёт.
+  resize grip с сохранением размера. Строка `FIND` фильтрует по title/artist/
+  album/path (без регистра, Esc очищает); при активном фильтре счётчики
+  показывают `найдено / всего`, стрелки ходят только по видимым строкам.
+  Drag-reorder работает при пустом фильтре: insertion line, автоскролл у краёв,
+  после перестановки порядок сохраняется. Удаление только когда
+  воспроизведение не идёт.
 - EQ: ON, cyclic presets (Flat, Full Bass & Treble, Dance, Classical, Vocal,
   Rock), curve, 10 vertical bands; drag enable автоматически.
 - Skins: Graphite (default), Midnight, Brass.
@@ -189,6 +198,8 @@ roundtrip. Окно позиций сохраняется из viewport `outer_r
   `config.playlist_size` (по умолчанию 550×464). Удобно снимать скриншот
   плейлиста через `MACAMP_SCREENSHOT`.
 - `MACAMP_EQ_ROOT=1` — то же для EQ 550×232.
+- `MACAMP_PLAYLIST_FILTER=tycho` — задать стартовый текст фильтра для
+  скриншотов и проверки пустого результата.
 - Для скриншотов windowshade/double size положить в `MACAMP_DATA_DIR/config.json`
   `{"shaded": true}` и/или `{"double_size": true}`. Double size снимается в
   физических пикселях (1100×464 при Retina).
@@ -216,7 +227,7 @@ timeout 20 ./target/debug/macamp /tmp/macamp-demo/*.flac
 - Нет обложек альбомов и предпросмотра Now Playing artwork.
 - Нет Finder open-with/Apple Events; Info.plist без document types. Работают
   drag & drop и `⌘O`. Ассоциации — следующий шаг.
-- Плейлист без фильтра/поиска/drag-reorder; удаление во время игры запрещено.
+- Удаление треков во время воспроизведения запрещено; фильтр и drag-reorder есть.
 - EQ без AUTO/preamp.
 - Нет локализации/accessibility, не notarized, нет DMG.
 - `.app` подписан ad-hoc; `codesign --verify --deep --strict` проходит.
@@ -226,9 +237,10 @@ timeout 20 ./target/debug/macamp /tmp/macamp-demo/*.flac
 
 ## Что делать дальше (приоритеты)
 
-1. **Добить классическую оболочку**: фильтр и drag-reorder в плейлисте,
-   удаление во время игры (аккуратно с lookahead), опционально shade для
-   playlist/EQ. Windowshade, double size, snapping и ресайз уже есть.
+1. **Добить плейлист**: удаление во время игры (аккуратно с lookahead и
+   текущим треком), опционально shade для playlist/EQ, выделение нескольких
+   треков и плейлисты m3u. Windowshade, double size, snapping, ресайз, фильтр
+   и drag-reorder уже есть.
 2. **Медиатека**: SQLite (`rusqlite`) + `walkdir` + `notify` + `lofty`,
    фоновый скан, поиск, обложки (кэш на диск), плейлисты m3u/m3u8/pls,
    умные плейлисты. Новая вкладка/окно Library в том же стиле или modern skin.
@@ -241,7 +253,7 @@ timeout 20 ./target/debug/macamp /tmp/macamp-demo/*.flac
    accessibility, album art в Now Playing.
 
 Быстрые победы, которые можно сделать первыми:
-- Фильтр-строка в плейлисте и drag-reorder.
+- Удаление во время воспроизведения (с перестройкой play_order и lookahead).
 - Альбомные обложки в библиотеке/Now Playing.
 - `AUTO`/preamp EQ.
 - ReplayGain/кроссфейд (кроссфейд потребует второго источника в микшере).

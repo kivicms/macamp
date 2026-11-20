@@ -145,6 +145,9 @@ pub struct MacAmpApp {
     eq_just_opened: bool,
     eq_root: bool,
     playlist_scroll: f32,
+    filter: String,
+    drag_track: Option<usize>,
+    drag_insert: Option<usize>,
     follow_current: bool,
     marquee_clock: Instant,
 
@@ -267,6 +270,9 @@ impl MacAmpApp {
             seek_target: None,
             spectrum: Spectrum::new(),
             playlist_scroll: 0.0,
+            filter: std::env::var("MACAMP_PLAYLIST_FILTER").unwrap_or_default(),
+            drag_track: None,
+            drag_insert: None,
             follow_current: false,
             marquee_clock: Instant::now(),
             toast: None,
@@ -347,6 +353,43 @@ impl MacAmpApp {
 
     fn total_duration(&self) -> Duration {
         self.tracks().iter().filter_map(Track::duration).sum()
+    }
+
+    fn filter_active(&self) -> bool {
+        !self.filter.trim().is_empty()
+    }
+
+    /// Playlist indices that match the current filter, in playlist order.
+    fn visible_indices(&self) -> Vec<usize> {
+        if !self.filter_active() {
+            return (0..self.tracks().len()).collect();
+        }
+        let needle = self.filter.trim().to_lowercase();
+        self.tracks()
+            .iter()
+            .enumerate()
+            .filter_map(|(index, track)| track_matches(track, &needle).then_some(index))
+            .collect()
+    }
+
+    fn move_track(&mut self, from: usize, to: usize) {
+        let len = self.tracks().len();
+        if from >= len {
+            return;
+        }
+        let to = to.min(len - 1);
+        if from == to {
+            return;
+        }
+        let track = self.config.tracks.remove(from);
+        self.config.tracks.insert(to, track);
+        self.current = self.current.map(|index| remap_after_move(index, from, to));
+        self.selected = self.selected.map(|index| remap_after_move(index, from, to));
+        for index in &mut self.play_order {
+            *index = remap_after_move(*index, from, to);
+        }
+        self.refresh_order_playback();
+        self.mark_dirty();
     }
 
     fn rebuild_order(&mut self) {
@@ -774,6 +817,8 @@ impl MacAmpApp {
         if self.show_playlist {
             self.playlist_just_opened = true;
         } else {
+            self.drag_track = None;
+            self.drag_insert = None;
             ctx.send_viewport_cmd_to(playlist_viewport_id(), ViewportCommand::Close);
         }
         self.mark_dirty();
@@ -1374,6 +1419,7 @@ impl MacAmpApp {
         let mut seek_delta = 0.0_f32;
         let mut select_delta = 0_i32;
         let mut double_size = false;
+        let mut clear_filter = false;
 
         ctx.input_mut(|input| {
             if input.consume_key(Modifiers::COMMAND, Key::O) {
@@ -1440,6 +1486,9 @@ impl MacAmpApp {
             if input.consume_key(Modifiers::NONE, Key::Minus) {
                 volume_delta = -0.05;
             }
+            if playlist_focused && input.consume_key(Modifiers::NONE, Key::Escape) {
+                clear_filter = true;
+            }
         });
 
         if open_files {
@@ -1478,26 +1527,38 @@ impl MacAmpApp {
         if double_size {
             self.toggle_double_size(ctx);
         }
+        if clear_filter && !self.filter.is_empty() {
+            self.filter.clear();
+            self.playlist_scroll = 0.0;
+        }
     }
 
     fn move_selection(&mut self, delta: i32) {
-        if self.tracks().is_empty() {
+        let visible = self.visible_indices();
+        let Some(last) = visible.len().checked_sub(1) else {
             return;
-        }
-        let current = self.selected.unwrap_or(0) as i32 + delta;
-        let index = current.clamp(0, self.tracks().len() as i32 - 1) as usize;
-        self.selected = Some(index);
+        };
+        let position = self
+            .selected
+            .and_then(|selected| visible.iter().position(|index| *index == selected));
+        let next = match position {
+            Some(position) => (position as i32 + delta).clamp(0, last as i32) as usize,
+            None if delta < 0 => last,
+            None => 0,
+        };
+        self.selected = Some(visible[next]);
         self.follow_current = false;
-        self.scroll_to_index(index);
+        self.scroll_to_index(next);
     }
 
-    fn scroll_to_index(&mut self, index: usize) {
-        let target = index as f32 * ROW_H;
+    /// Scroll so a row position in the filtered list is visible. The lower
+    /// bound is clamped immediately; the upper bound is corrected once the
+    /// playlist viewport height is known.
+    fn scroll_to_index(&mut self, position: usize) {
+        let target = position as f32 * ROW_H;
         if target < self.playlist_scroll {
             self.playlist_scroll = target;
         }
-        // The upper bound is corrected in the playlist drawing code once the
-        // viewport height is known.
         self.playlist_scroll = self.playlist_scroll.max(0.0);
     }
 
@@ -2279,19 +2340,15 @@ impl MacAmpApp {
         if tiny_title_button(ui, close_rect, "playlist_close", &p, Icon::Close).clicked() {
             self.show_playlist = false;
             self.config.show_playlist = false;
+            self.drag_track = None;
+            self.drag_insert = None;
             self.mark_dirty();
         }
-        let count_text = format!("{} TRACKS", self.tracks().len());
-        ui.painter().text(
-            pos2(rect.right() - 26.0, rect.top() + 9.0),
-            Align2::RIGHT_TOP,
-            count_text,
-            p.mono(7.5),
-            p.dim,
-        );
         if ui.ctx().input(|input| input.viewport().close_requested()) {
             self.show_playlist = false;
             self.config.show_playlist = false;
+            self.drag_track = None;
+            self.drag_insert = None;
             self.mark_dirty();
         }
         if Instant::now() >= self.zoom_guard_until {
@@ -2389,7 +2446,74 @@ impl MacAmpApp {
             },
         );
 
-        let header_y = toolbar.bottom() + 5.0;
+        let filter_row = Rect::from_min_size(
+            pos2(body.left(), toolbar.bottom() + 4.0),
+            vec2(body.width(), 20.0),
+        );
+        ui.painter().text(
+            pos2(filter_row.left() + 4.0, filter_row.center().y),
+            Align2::LEFT_CENTER,
+            "FIND",
+            p.text_font(6.5),
+            p.dim,
+        );
+        let field = Rect::from_min_max(
+            pos2(filter_row.left() + 32.0, filter_row.top()),
+            pos2(filter_row.right() - 2.0, filter_row.bottom()),
+        );
+        inset(ui.painter(), field, p.inset, p.edge_lo, p.edge_hi);
+        let text_rect = Rect::from_min_max(
+            field.min + vec2(4.0, 2.0),
+            pos2(field.right() - 22.0, field.bottom() - 2.0),
+        );
+        let editor = egui::TextEdit::singleline(&mut self.filter)
+            .font(p.text_font(8.5))
+            .text_color(p.text)
+            .hint_text("title · artist · album")
+            .frame(egui::Frame::NONE)
+            .margin(egui::Margin::ZERO)
+            .desired_width(text_rect.width());
+        let edit_response = ui
+            .scope(|ui| {
+                ui.style_mut().visuals.selection.bg_fill = p.select;
+                ui.style_mut().visuals.selection.stroke = Stroke::new(1.0, p.led);
+                ui.style_mut().visuals.widgets.active.bg_fill = Color32::TRANSPARENT;
+                ui.style_mut().visuals.widgets.inactive.bg_fill = Color32::TRANSPARENT;
+                ui.style_mut().visuals.widgets.hovered.bg_fill = Color32::TRANSPARENT;
+                ui.put(text_rect, editor)
+            })
+            .inner;
+        if edit_response.has_focus() && ui.input(|input| input.key_pressed(Key::Escape)) {
+            self.filter.clear();
+        }
+        if self.filter_active() {
+            let clear_rect = Rect::from_min_size(
+                pos2(field.right() - 18.0, field.top() + 2.0),
+                vec2(14.0, 16.0),
+            );
+            if tiny_title_button(ui, clear_rect, "pl_filter_clear", &p, Icon::Close)
+                .on_hover_text("Очистить фильтр")
+                .clicked()
+            {
+                self.filter.clear();
+            }
+        }
+        let filtering = self.filter_active();
+        let visible = self.visible_indices();
+        let count_text = if filtering {
+            format!("{} / {}", visible.len(), self.tracks().len())
+        } else {
+            format!("{} TRACKS", self.tracks().len())
+        };
+        ui.painter().text(
+            pos2(rect.right() - 26.0, rect.top() + 9.0),
+            Align2::RIGHT_TOP,
+            count_text,
+            p.mono(7.5),
+            p.dim,
+        );
+
+        let header_y = filter_row.bottom() + 5.0;
         let header = Rect::from_min_size(
             pos2(body.left() + 4.0, header_y),
             vec2(body.width() - 14.0, 12.0),
@@ -2422,20 +2546,23 @@ impl MacAmpApp {
             list.min + vec2(1.0, 1.0),
             pos2(list.right() - scrollbar_w - 1.0, list.bottom() - 1.0),
         );
-        let content_h = self.tracks().len() as f32 * ROW_H;
+        let content_h = visible.len() as f32 * ROW_H;
         let view_h = list_inner.height();
         let max_scroll = (content_h - view_h).max(0.0);
         if ui.rect_contains_pointer(list) {
             let wheel = ui.input(|input| input.smooth_scroll_delta.y);
             if wheel != 0.0 {
                 self.playlist_scroll -= wheel;
-                self.playlist_scroll = self.playlist_scroll.clamp(0.0, max_scroll);
             }
         }
+        self.playlist_scroll = self.playlist_scroll.clamp(0.0, max_scroll);
 
         if self.follow_current {
-            if let Some(current) = self.current {
-                let top = current as f32 * ROW_H;
+            if let Some(position) = self
+                .current
+                .and_then(|current| visible.iter().position(|index| *index == current))
+            {
+                let top = position as f32 * ROW_H;
                 let bottom = top + ROW_H;
                 if top < self.playlist_scroll {
                     self.playlist_scroll = top;
@@ -2443,26 +2570,31 @@ impl MacAmpApp {
                     self.playlist_scroll = bottom - view_h;
                 }
                 self.playlist_scroll = self.playlist_scroll.clamp(0.0, max_scroll);
-                self.follow_current = false;
             }
+            self.follow_current = false;
         }
 
-        if self.tracks().is_empty() {
+        if visible.is_empty() {
             ui.painter().text(
                 list_inner.center(),
                 Align2::CENTER_CENTER,
-                "DROP AUDIO FILES OR PRESS ADD",
+                if filtering {
+                    "NO MATCHES · ESC TO CLEAR"
+                } else {
+                    "DROP AUDIO FILES OR PRESS ADD"
+                },
                 p.text_font(9.5),
                 p.led.gamma_multiply(0.35),
             );
         } else {
             let first = (self.playlist_scroll / ROW_H).floor().max(0.0) as usize;
-            let visible = (view_h / ROW_H).ceil() as usize + 1;
-            let end = (first + visible).min(self.tracks().len());
+            let visible_rows = (view_h / ROW_H).ceil() as usize + 1;
+            let end = (first + visible_rows).min(visible.len());
             let list_painter = ui.painter().with_clip_rect(list_inner);
-            let mut clicked: Option<(usize, bool)> = None;
-            for index in first..end {
-                let y = list_inner.top() + index as f32 * ROW_H - self.playlist_scroll;
+            let mut clicked: Option<usize> = None;
+            for (position, track_index) in visible.iter().enumerate().take(end).skip(first) {
+                let track_index = *track_index;
+                let y = list_inner.top() + position as f32 * ROW_H - self.playlist_scroll;
                 let row = Rect::from_min_size(
                     pos2(list_inner.left(), y),
                     vec2(list_inner.width(), ROW_H),
@@ -2470,24 +2602,40 @@ impl MacAmpApp {
                 if row.bottom() < list_inner.top() || row.top() > list_inner.bottom() {
                     continue;
                 }
-                let response =
-                    ui.interact(row, Id::unique(("playlist_row", index)), Sense::click());
+                let response = ui.interact(
+                    row,
+                    Id::unique(("playlist_row", track_index)),
+                    Sense::click_and_drag(),
+                );
                 if response.clicked() {
-                    self.selected = Some(index);
+                    self.selected = Some(track_index);
                 }
                 if response.double_clicked() {
-                    clicked = Some((index, true));
+                    clicked = Some(track_index);
                 }
-                let is_current = self.current == Some(index);
-                let is_selected = self.selected == Some(index);
+                if !filtering && response.drag_started() {
+                    self.drag_track = Some(track_index);
+                    self.drag_insert = Some(position);
+                    self.selected = Some(track_index);
+                }
+                let is_current = self.current == Some(track_index);
+                let is_selected = self.selected == Some(track_index);
+                let is_dragging = self.drag_track == Some(track_index);
                 let hovered = response.hovered();
-                let bg = if is_current {
+                if is_dragging {
+                    ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
+                } else if hovered && !filtering {
+                    ui.ctx().set_cursor_icon(CursorIcon::Grab);
+                }
+                let bg = if is_dragging {
+                    lerp_color(p.face_dark, p.led, 0.28)
+                } else if is_current {
                     p.select
                 } else if is_selected {
                     lerp_color(p.face_dark, p.select, 0.35)
                 } else if hovered {
                     lerp_color(p.inset, p.face_dark, 0.4)
-                } else if index % 2 == 0 {
+                } else if position % 2 == 0 {
                     p.screen
                 } else {
                     p.inset
@@ -2502,7 +2650,7 @@ impl MacAmpApp {
                     );
                 }
                 let number_color = if is_current { p.led } else { p.dim };
-                let index_text = format!("{:02}", index + 1);
+                let index_text = format!("{:02}", track_index + 1);
                 list_painter.text(
                     pos2(row.left() + 5.0, row.center().y),
                     Align2::LEFT_CENTER,
@@ -2534,22 +2682,22 @@ impl MacAmpApp {
                 title_painter.text(
                     pos2(title_rect.left(), row.center().y),
                     Align2::LEFT_CENTER,
-                    self.tracks()[index].display_title(),
+                    self.tracks()[track_index].display_title(),
                     p.text_font(9.5),
                     if is_current { p.select_text } else { p.text },
                 );
                 list_painter.text(
                     pos2(row.right() - 5.0, row.center().y),
                     Align2::RIGHT_CENTER,
-                    self.tracks()[index]
+                    self.tracks()[track_index]
                         .duration()
                         .map(format_time)
                         .unwrap_or_else(|| "--:--".to_owned()),
                     p.mono(8.0),
                     if is_current { p.select_text } else { p.dim },
                 );
-                if hovered {
-                    let track = &self.tracks()[index];
+                if hovered && !is_dragging {
+                    let track = &self.tracks()[track_index];
                     let mut tip = track.display_title();
                     if !track.album.is_empty() {
                         tip.push_str(" · ");
@@ -2558,10 +2706,20 @@ impl MacAmpApp {
                     response.on_hover_text(tip);
                 }
             }
-            if let Some((index, play)) = clicked {
+            if let Some(index) = clicked {
                 self.selected = Some(index);
-                if play {
-                    self.start_track_index(index, Duration::ZERO, true);
+                self.start_track_index(index, Duration::ZERO, true);
+            }
+            if let Some(slot) = self.drag_insert {
+                if self.drag_track.is_some() {
+                    let y = list_inner.top() + slot as f32 * ROW_H - self.playlist_scroll;
+                    if y >= list_inner.top() - 1.0 && y <= list_inner.bottom() + 1.0 {
+                        let line = Rect::from_min_max(
+                            pos2(list_inner.left(), y - 1.0),
+                            pos2(list_inner.right(), y + 1.0),
+                        );
+                        list_painter.rect_filled(line.intersect(list_inner), 0.0, p.led);
+                    }
                 }
             }
             if content_h > view_h + 0.5 {
@@ -2583,6 +2741,32 @@ impl MacAmpApp {
                         self.playlist_scroll = t * max_scroll;
                     }
                 }
+            }
+        }
+
+        if self.drag_track.is_some() {
+            if filtering {
+                self.drag_track = None;
+                self.drag_insert = None;
+            } else if !ui.input(|input| input.pointer.any_down()) {
+                let from = self.drag_track.take().unwrap();
+                let slot = self.drag_insert.take().unwrap_or(from);
+                let to = if slot > from { slot - 1 } else { slot };
+                self.selected = Some(from);
+                self.move_track(from, to);
+            } else if let Some(pointer) = ui.ctx().pointer_interact_pos() {
+                let slot = ((pointer.y - list_inner.top() + self.playlist_scroll) / ROW_H)
+                    .round()
+                    .clamp(0.0, visible.len() as f32) as usize;
+                self.drag_insert = Some(slot);
+                if pointer.y < list_inner.top() + ROW_H && self.playlist_scroll > 0.0 {
+                    self.playlist_scroll = (self.playlist_scroll - 6.0).max(0.0);
+                } else if pointer.y > list_inner.bottom() - ROW_H
+                    && self.playlist_scroll < max_scroll
+                {
+                    self.playlist_scroll = (self.playlist_scroll + 6.0).min(max_scroll);
+                }
+                ui.ctx().request_repaint_after(Duration::from_millis(16));
             }
         }
 
@@ -2637,14 +2821,24 @@ impl MacAmpApp {
                 );
             }
         }
-        let total = self.total_duration();
         let footer_text = if self.tracks().is_empty() {
             "0 TRACKS".to_owned()
+        } else if filtering {
+            let shown: Duration = visible
+                .iter()
+                .filter_map(|index| self.tracks()[*index].duration())
+                .sum();
+            format!(
+                "{} / {} TRACKS · {}",
+                visible.len(),
+                self.tracks().len(),
+                format_long_duration(shown)
+            )
         } else {
             format!(
                 "{} TRACKS · {}",
                 self.tracks().len(),
-                format_long_duration(total)
+                format_long_duration(self.total_duration())
             )
         };
         ui.painter().text(
@@ -3188,6 +3382,31 @@ fn format_long_duration(duration: Duration) -> String {
     }
 }
 
+/// Case-insensitive match over title, artist, album and path. `needle` is
+/// expected to be lowercase already.
+fn track_matches(track: &Track, needle: &str) -> bool {
+    let mut haystack = String::with_capacity(96);
+    haystack.push_str(&track.display_title());
+    haystack.push(' ');
+    haystack.push_str(&track.album);
+    haystack.push(' ');
+    haystack.push_str(&track.path.to_string_lossy());
+    haystack.to_lowercase().contains(needle)
+}
+
+/// New index of an old playlist entry after moving `from` to `to`.
+fn remap_after_move(index: usize, from: usize, to: usize) -> usize {
+    if index == from {
+        to
+    } else if from < to && index > from && index <= to {
+        index - 1
+    } else if to < from && index >= to && index < from {
+        index + 1
+    } else {
+        index
+    }
+}
+
 fn rects_overlap_x(a: Rect, b: Rect) -> bool {
     a.left().max(b.left()) < a.right().min(b.right()) - 0.5
 }
@@ -3263,6 +3482,51 @@ mod tests {
 
     fn rect(x: f32, y: f32, w: f32, h: f32) -> Rect {
         Rect::from_min_size(pos2(x, y), vec2(w, h))
+    }
+
+    fn track(title: &str, artist: &str, album: &str, path: &str) -> Track {
+        Track {
+            path: PathBuf::from(path),
+            title: title.to_owned(),
+            artist: artist.to_owned(),
+            album: album.to_owned(),
+            year: None,
+            duration_ms: None,
+            sample_rate: None,
+            channels: None,
+            bitrate_kbps: None,
+            codec: "FLAC".to_owned(),
+        }
+    }
+
+    #[test]
+    fn filter_matches_title_artist_album_and_path() {
+        let track = track(
+            "Teardrop",
+            "Massive Attack",
+            "Mezzanine",
+            "/Music/Massive Attack/01 Teardrop.flac",
+        );
+        assert!(track_matches(&track, "teardrop"));
+        assert!(track_matches(&track, "massive attack"));
+        assert!(track_matches(&track, "mezzanine"));
+        assert!(track_matches(&track, "01 teardrop.flac"));
+        assert!(!track_matches(&track, "portishead"));
+    }
+
+    #[test]
+    fn remap_tracks_after_reorder() {
+        // 2 moved down to 5.
+        assert_eq!(remap_after_move(2, 2, 5), 5);
+        assert_eq!(remap_after_move(3, 2, 5), 2);
+        assert_eq!(remap_after_move(4, 2, 5), 3);
+        assert_eq!(remap_after_move(5, 2, 5), 4);
+        assert_eq!(remap_after_move(6, 2, 5), 6);
+        // 5 moved up to 2.
+        assert_eq!(remap_after_move(5, 5, 2), 2);
+        assert_eq!(remap_after_move(2, 5, 2), 3);
+        assert_eq!(remap_after_move(4, 5, 2), 5);
+        assert_eq!(remap_after_move(1, 5, 2), 1);
     }
 
     #[test]
