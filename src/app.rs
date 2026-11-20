@@ -1081,28 +1081,47 @@ impl MacAmpApp {
             self.toast("Сначала выберите трек", false);
             return;
         };
-        if self.started {
-            self.toast("Остановите воспроизведение, чтобы менять очередь", false);
-            return;
-        }
         if index >= self.tracks().len() {
             return;
         }
+        if self.started && self.current == Some(index) {
+            self.toast("Играющий трек удалить нельзя · сначала Stop", true);
+            return;
+        }
         self.config.tracks.remove(index);
-        self.current = match self.current {
-            Some(current) if current == index => None,
-            Some(current) if current > index => Some(current - 1),
-            other => other,
-        };
+        self.drag_track = None;
+        self.drag_insert = None;
+        if self.started {
+            self.current = self.current.map(|current| {
+                if current > index {
+                    current - 1
+                } else {
+                    current
+                }
+            });
+            if !remove_track_from_order(&mut self.play_order, &mut self.play_pos, index) {
+                self.rebuild_order();
+            }
+            // A queued lookahead may now point at the wrong order position.
+            // Restarting the current track replaces it before it can play.
+            self.refresh_order_playback();
+        } else {
+            self.current = match self.current {
+                Some(current) if current == index => None,
+                Some(current) if current > index => Some(current - 1),
+                other => other,
+            };
+            self.position = Duration::ZERO;
+            self.rebuild_order();
+        }
         self.selected = if self.config.tracks.is_empty() {
             None
         } else {
             Some(index.min(self.config.tracks.len() - 1))
         };
-        self.position = Duration::ZERO;
-        self.rebuild_order();
+        self.config.current = self.current;
+        self.follow_current = !self.started;
         self.mark_dirty();
-        self.follow_current = true;
     }
 
     fn handle_drops(&mut self, ctx: &egui::Context) {
@@ -2408,6 +2427,9 @@ impl MacAmpApp {
             false,
             true,
         );
+        let can_remove = self
+            .selected
+            .is_some_and(|selected| !self.started || self.current != Some(selected));
         let remove = classic_button(
             ui,
             remove_rect,
@@ -2416,8 +2438,15 @@ impl MacAmpApp {
             Some(Icon::Remove),
             Some("REM"),
             false,
-            !self.started && self.selected.is_some(),
+            can_remove,
         );
+        let remove = remove.on_hover_text(if self.selected.is_none() {
+            "Сначала выберите трек"
+        } else if !can_remove {
+            "Играющий трек: сначала Stop"
+        } else {
+            "Удалить выбранный трек"
+        });
         if add.clicked() {
             self.open_files();
         }
@@ -3394,6 +3423,26 @@ fn track_matches(track: &Track, needle: &str) -> bool {
     haystack.to_lowercase().contains(needle)
 }
 
+/// Remove a track from the play order, remapping the remaining entries and
+/// keeping `play_pos` on the same track. Returns false when the track was not
+/// part of the order (caller should rebuild it).
+fn remove_track_from_order(order: &mut Vec<usize>, play_pos: &mut usize, removed: usize) -> bool {
+    let Some(position) = order.iter().position(|index| *index == removed) else {
+        return false;
+    };
+    order.retain(|index| *index != removed);
+    for index in order.iter_mut() {
+        if *index > removed {
+            *index -= 1;
+        }
+    }
+    if position < *play_pos {
+        *play_pos -= 1;
+    }
+    *play_pos = (*play_pos).min(order.len().saturating_sub(1));
+    true
+}
+
 /// New index of an old playlist entry after moving `from` to `to`.
 fn remap_after_move(index: usize, from: usize, to: usize) -> usize {
     if index == from {
@@ -3512,6 +3561,33 @@ mod tests {
         assert!(track_matches(&track, "mezzanine"));
         assert!(track_matches(&track, "01 teardrop.flac"));
         assert!(!track_matches(&track, "portishead"));
+    }
+
+    #[test]
+    fn removing_earlier_order_entry_keeps_current_track() {
+        let mut order = vec![2, 0, 1];
+        let mut play_pos = 1; // current track is 0
+        assert!(remove_track_from_order(&mut order, &mut play_pos, 2));
+        assert_eq!(order, vec![0, 1]);
+        assert_eq!(play_pos, 0);
+    }
+
+    #[test]
+    fn removing_later_order_entry_keeps_current_track() {
+        let mut order = vec![2, 0, 1];
+        let mut play_pos = 0; // current track is 2
+        assert!(remove_track_from_order(&mut order, &mut play_pos, 0));
+        assert_eq!(order, vec![1, 0]);
+        assert_eq!(play_pos, 0);
+    }
+
+    #[test]
+    fn removing_unknown_track_falls_back_to_rebuild() {
+        let mut order = vec![0, 1];
+        let mut play_pos = 0;
+        assert!(!remove_track_from_order(&mut order, &mut play_pos, 5));
+        assert_eq!(order, vec![0, 1]);
+        assert_eq!(play_pos, 0);
     }
 
     #[test]
