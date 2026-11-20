@@ -1,0 +1,3186 @@
+<title>MacAmp 2.0 Concept</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Silkscreen:wght@400;700&family=Unbounded:wght@400;500;600;700&display=swap">
+<style>
+/* ============================================================
+   MacAmp 2.0 concept
+   Palette: graphite room, phosphor LEDs, amber VU.
+   Type: Unbounded (display), Golos Text (body), IBM Plex Mono
+   (meta/data), Silkscreen (inside the player only).
+   Layout: editorial column + one large interactive player stage;
+   open rules and beveled panels instead of rounded-card soup.
+   Deliberately a single dark world: this is a night-time player.
+   ============================================================ */
+:root{
+  color-scheme: dark;
+
+  --bg: #0a0d0b;
+  --bg-soft: #0e1210;
+  --surface: #131915;
+  --surface-2: #18201a;
+  --line: #29332c;
+  --line-soft: #1e2721;
+  --line-strong: #3a473d;
+
+  --text: #e9efe8;
+  --muted: #a2b0a4;
+  --dim: #83938a;
+
+  --amber: #f0b45c;
+  --amber-deep: #b87e33;
+  --green: #a4e57f;
+  --cyan: #83d9e8;
+  --red: #ff7262;
+
+  --radius: 6px;
+  --maxw: 1180px;
+
+  --font-display: "Unbounded", "Arial Black", "Helvetica Neue", sans-serif;
+  --font-body: "Golos Text", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+  --font-pixel: "Silkscreen", "IBM Plex Mono", monospace;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
+}
+
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font-body);
+  font-size:16px;
+  line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+
+::selection{background:var(--amber);color:#14100a}
+
+a{color:var(--amber)}
+a:hover{color:#ffd08d}
+
+h1,h2,h3,h4,p,figure,blockquote{margin:0}
+ul,ol{margin:0;padding:0;list-style:none}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+
+.sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
+}
+
+.wrap{
+  width:100%;
+  max-width:calc(var(--maxw) + 64px);
+  margin-inline:auto;
+  padding-left:max(32px, env(safe-area-inset-left, 0px));
+  padding-right:max(32px, env(safe-area-inset-right, 0px));
+}
+
+/* ---------- top bar ---------- */
+body::before{
+  content:"";
+  position:fixed;
+  inset:0 0 auto 0;
+  height:env(safe-area-inset-top, 0px);
+  z-index:30;
+  background:#0d110e;
+}
+.topbar{
+  position:sticky;
+  top:env(safe-area-inset-top, 0px);
+  z-index:25;
+  background:rgba(10,13,11,.86);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--line-soft);
+}
+.topbar-inner{
+  display:flex;
+  align-items:center;
+  gap:28px;
+  min-height:58px;
+}
+.brand{
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  text-decoration:none;
+  color:var(--text);
+  flex:0 0 auto;
+}
+.brand:hover{color:var(--text)}
+.brand-mark{
+  display:flex;
+  align-items:flex-end;
+  gap:2px;
+  width:24px;
+  height:22px;
+  padding:4px 5px;
+  border:1px solid var(--line-strong);
+  border-radius:3px;
+  background:linear-gradient(180deg,#222b24,#111712);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+}
+.brand-mark i{
+  display:block;
+  width:2px;
+  background:var(--amber);
+  box-shadow:0 0 6px rgba(240,180,92,.5);
+}
+.brand-mark i:nth-child(1){height:5px;opacity:.55}
+.brand-mark i:nth-child(2){height:11px;opacity:.8}
+.brand-mark i:nth-child(3){height:8px}
+.brand-mark i:nth-child(4){height:14px;background:var(--green);box-shadow:0 0 6px rgba(164,229,127,.5)}
+.brand-mark i:nth-child(5){height:6px;opacity:.6}
+.brand-name{
+  font-family:var(--font-display);
+  font-size:16px;
+  font-weight:600;
+  letter-spacing:-.02em;
+}
+.brand-ver{
+  font-family:var(--font-mono);
+  font-size:10px;
+  color:var(--amber);
+  border:1px solid var(--line-strong);
+  padding:1px 5px;
+  border-radius:3px;
+  transform:translateY(1px);
+}
+.nav{
+  display:flex;
+  align-items:center;
+  gap:2px;
+  min-width:0;
+  overflow-x:auto;
+  scrollbar-width:none;
+}
+.nav::-webkit-scrollbar{display:none}
+.nav a{
+  color:var(--muted);
+  text-decoration:none;
+  font-size:13px;
+  padding:7px 11px;
+  border-radius:4px;
+  white-space:nowrap;
+}
+.nav a:hover{color:var(--text);background:rgba(255,255,255,.045)}
+.top-status{
+  margin-left:auto;
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  font-family:var(--font-mono);
+  font-size:10px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--dim);
+  white-space:nowrap;
+}
+.led{
+  display:inline-block;
+  width:6px;height:6px;
+  border-radius:50%;
+  background:var(--green);
+  box-shadow:0 0 8px rgba(164,229,127,.7);
+  flex:0 0 auto;
+}
+.led.amber{background:var(--amber);box-shadow:0 0 8px rgba(240,180,92,.7)}
+.led.red{background:var(--red);box-shadow:0 0 8px rgba(255,114,98,.7)}
+
+/* ---------- shared type ---------- */
+.eyebrow,.mono-label{
+  font-family:var(--font-mono);
+  font-size:10.5px;
+  letter-spacing:.17em;
+  text-transform:uppercase;
+  color:var(--amber);
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+}
+.eyebrow{color:var(--dim)}
+.eyebrow .led{width:5px;height:5px}
+h1,h2,h3,h4{
+  font-family:var(--font-display);
+  font-weight:600;
+  letter-spacing:-.035em;
+  line-height:1.06;
+  text-wrap:balance;
+}
+h1{font-size:clamp(38px, 5.8vw, 70px);line-height:1;max-width:100%}
+h2{font-size:clamp(29px, 3.9vw, 47px);max-width:20ch}
+h3{font-size:clamp(20px, 2.2vw, 26px);letter-spacing:-.025em}
+h4{font-size:17px;letter-spacing:-.015em}
+.lede{
+  font-size:clamp(17px, 1.55vw, 20px);
+  line-height:1.55;
+  color:var(--muted);
+  max-width:64ch;
+}
+.section{
+  padding-block:clamp(56px, 8vw, 104px);
+  border-top:1px solid var(--line-soft);
+}
+section[id]{scroll-margin-top:86px}
+.section-head{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0, .82fr);
+  gap:clamp(20px, 5vw, 72px);
+  align-items:end;
+  margin-bottom:clamp(32px, 5vw, 56px);
+}
+.section-head .lede{font-size:16px;line-height:1.65;max-width:52ch}
+.section-head .eyebrow{margin-bottom:16px;display:flex}
+
+/* ---------- hero ---------- */
+.hero{
+  padding-block:clamp(44px, 5.5vw, 68px) clamp(48px, 6vw, 76px);
+  background:
+    radial-gradient(900px 460px at 74% -8%, rgba(240,180,92,.09), transparent 62%),
+    radial-gradient(760px 540px at 4% 18%, rgba(164,229,127,.045), transparent 66%);
+}
+.hero-copy{max-width:1000px}
+.hero h1{margin:16px 0 20px}
+.hero .lede{max-width:62ch}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.hero-chips{margin-top:26px}
+.chip{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  font-family:var(--font-mono);
+  font-size:11px;
+  letter-spacing:.04em;
+  color:var(--muted);
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.02);
+  padding:5px 10px;
+  border-radius:3px;
+}
+.chip-warn{color:var(--amber);border-color:rgba(240,180,92,.35);background:rgba(240,180,92,.05)}
+.chip-warn::before{
+  content:"";width:5px;height:5px;border-radius:50%;
+  background:var(--amber);box-shadow:0 0 6px rgba(240,180,92,.7);
+}
+
+/* ---------- stage ---------- */
+.stage-block{margin-top:clamp(32px, 5vw, 52px)}
+.stage-head{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:20px;
+  flex-wrap:wrap;
+  margin-bottom:14px;
+}
+.stage-head .mono-label{color:var(--green)}
+.stage-note{color:var(--dim);font-size:13px;margin-top:5px}
+.skin-switch{
+  display:flex;
+  gap:3px;
+  padding:3px;
+  border:1px solid var(--line);
+  background:var(--bg-soft);
+  border-radius:5px;
+}
+.skin-btn{
+  border:0;
+  background:transparent;
+  color:var(--muted);
+  font-family:var(--font-mono);
+  font-size:10.5px;
+  letter-spacing:.06em;
+  padding:6px 11px;
+  border-radius:3px;
+  cursor:pointer;
+}
+.skin-btn:hover{color:var(--text);background:rgba(255,255,255,.05)}
+.skin-btn.is-active{
+  color:#151109;
+  background:var(--amber);
+  box-shadow:0 0 14px rgba(240,180,92,.18);
+}
+.stage-foot{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+  color:var(--dim);
+  font-size:12px;
+  margin-top:12px;
+}
+.stage-foot .mono-label{color:var(--dim);letter-spacing:.12em}
+
+.desk{
+  position:relative;
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:clamp(14px, 2.6vw, 30px);
+  background:
+    radial-gradient(110% 90% at 50% -10%, #141b15 0%, #0a0e0b 62%),
+    #090c0a;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.045),
+    0 46px 90px -44px rgba(0,0,0,.9);
+  overflow:hidden;
+}
+.desk::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:
+    linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px) 0 0 / 36px 36px,
+    linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px) 0 0 / 36px 36px;
+  mask-image:radial-gradient(90% 90% at 50% 30%, #000 20%, transparent 100%);
+  -webkit-mask-image:radial-gradient(90% 90% at 50% 30%, #000 20%, transparent 100%);
+}
+.desk::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:linear-gradient(180deg, rgba(164,229,127,.03), transparent 30%);
+}
+.desk-grid{
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:clamp(12px, 1.7vw, 20px);
+  max-width:1040px;
+  margin-inline:auto;
+  align-items:stretch;
+}
+.col{
+  display:flex;
+  flex-direction:column;
+  gap:clamp(12px, 1.7vw, 20px);
+  min-width:0;
+}
+
+/* skin tokens */
+.desk{
+  --w-frame:#3c433b;
+  --w-frame-2:#272d27;
+  --w-title-a:#67715f;
+  --w-title-b:#373f36;
+  --w-edge-hi:#8e988a;
+  --w-edge-lo:#151a15;
+  --w-face:#4a5348;
+  --w-face-2:#394139;
+  --w-inset:#111612;
+  --w-screen:#07110a;
+  --w-text:#e8eee3;
+  --w-title-text:#f3f7ef;
+  --w-dim:#aab5a7;
+  --w-led:#a8f078;
+  --w-led-soft:rgba(168,240,120,.42);
+  --w-amber:#ffbc5b;
+  --w-red:#ff6f5e;
+  --w-select:#20432a;
+  --w-select-text:#d9ffbe;
+  --w-track:#0e130f;
+  --w-thumb:#c3cdbe;
+  --w-blue:#8fd8e8;
+}
+.desk[data-skin="midnight"]{
+  --w-frame:#283246;
+  --w-frame-2:#1a2233;
+  --w-title-a:#405578;
+  --w-title-b:#1a2537;
+  --w-edge-hi:#7b90b2;
+  --w-edge-lo:#0d141f;
+  --w-face:#33425c;
+  --w-face-2:#26334a;
+  --w-inset:#0b111c;
+  --w-screen:#050c17;
+  --w-text:#e2ecfb;
+  --w-title-text:#f0f6ff;
+  --w-dim:#a3b6d0;
+  --w-led:#7ee8ff;
+  --w-led-soft:rgba(126,232,255,.4);
+  --w-amber:#ff9b5c;
+  --w-red:#ff7a8a;
+  --w-select:#1d3f5e;
+  --w-select-text:#d6f5ff;
+  --w-track:#0a1220;
+  --w-thumb:#d0dcef;
+  --w-blue:#b0a6ff;
+}
+.desk[data-skin="brass"]{
+  --w-frame:#4a4237;
+  --w-frame-2:#2d2821;
+  --w-title-a:#8b7b63;
+  --w-title-b:#433a2e;
+  --w-edge-hi:#c1ae90;
+  --w-edge-lo:#1d1914;
+  --w-face:#5b5143;
+  --w-face-2:#443b30;
+  --w-inset:#1a1611;
+  --w-screen:#171207;
+  --w-text:#f2ead9;
+  --w-title-text:#fbf4e7;
+  --w-dim:#c1b49c;
+  --w-led:#ffc46b;
+  --w-led-soft:rgba(255,196,107,.4);
+  --w-amber:#ffd697;
+  --w-red:#ff7d5c;
+  --w-select:#5a4524;
+  --w-select-text:#ffe9bf;
+  --w-track:#17120b;
+  --w-thumb:#d9caaf;
+  --w-blue:#9fd6c8;
+}
+
+/* ---------- classic windows ---------- */
+.win{
+  min-width:0;
+  background:var(--w-frame);
+  border:1px solid var(--w-edge-lo);
+  border-radius:3px;
+  color:var(--w-text);
+  box-shadow:
+    inset 1px 1px 0 var(--w-edge-hi),
+    inset -1px -1px 0 var(--w-edge-lo),
+    0 20px 40px -22px rgba(0,0,0,.95);
+  overflow:hidden;
+  user-select:none;
+  -webkit-user-select:none;
+}
+.win-title{
+  height:22px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:0 4px 0 7px;
+  background:linear-gradient(180deg, var(--w-title-a), var(--w-title-b));
+  border-bottom:1px solid var(--w-edge-lo);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16);
+}
+.win-brand{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  min-width:0;
+  overflow:hidden;
+  white-space:nowrap;
+  font-family:var(--font-pixel);
+  font-size:8px;
+  letter-spacing:.06em;
+  color:var(--w-title-text);
+  text-shadow:0 1px 0 rgba(0,0,0,.55);
+}
+.win-brand b{color:var(--w-led);font-weight:400}
+.win-logo{display:inline-flex;align-items:flex-end;gap:1px;height:8px}
+.win-logo i{display:block;width:1px;background:var(--w-led)}
+.win-logo i:nth-child(1){height:3px;opacity:.6}
+.win-logo i:nth-child(2){height:6px;opacity:.8}
+.win-logo i:nth-child(3){height:8px}
+.win-meta{
+  margin-left:auto;
+  font-family:var(--font-mono);
+  font-size:7px;
+  letter-spacing:.12em;
+  color:var(--w-dim);
+  white-space:nowrap;
+}
+.win-actions{display:flex;gap:2px;margin-left:auto}
+.win-brand + .win-meta + .win-actions{margin-left:0}
+.win-actions i{
+  display:grid;
+  place-items:center;
+  width:12px;height:12px;
+  font-family:var(--font-mono);
+  font-style:normal;
+  font-size:8px;
+  line-height:1;
+  color:var(--w-text);
+  background:linear-gradient(180deg, var(--w-face), var(--w-face-2));
+  border-top:1px solid var(--w-edge-hi);
+  border-left:1px solid var(--w-edge-hi);
+  border-right:1px solid var(--w-edge-lo);
+  border-bottom:1px solid var(--w-edge-lo);
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.08);
+}
+.win-meta ~ .win-actions{margin-left:0}
+
+/* main window */
+.main-body{
+  position:relative;
+  padding:6px 22px 6px 6px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.screen{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:10px;
+  align-items:stretch;
+  padding:7px 9px;
+  background:var(--w-screen);
+  border:1px solid var(--w-edge-lo);
+  box-shadow:inset 1px 1px 3px rgba(0,0,0,.9), inset 0 0 24px rgba(0,0,0,.55);
+}
+.scope{
+  display:flex;
+  align-items:flex-end;
+  gap:2px;
+  height:48px;
+  min-width:0;
+  overflow:hidden;
+}
+.bar{
+  flex:1 1 0;
+  min-width:2px;
+  height:var(--h1);
+  background-image:
+    repeating-linear-gradient(to top, transparent 0 3px, var(--w-screen) 3px 5px),
+    linear-gradient(to top, var(--w-led) 0%, var(--w-led) 58%, var(--w-amber) 82%, var(--w-red) 100%);
+  animation:spectrum 1.15s ease-in-out infinite alternate;
+  animation-delay:var(--d,0s);
+  animation-play-state:paused;
+  opacity:.92;
+}
+@keyframes spectrum{
+  from{height:var(--h1)}
+  to{height:var(--h2)}
+}
+.is-playing .bar{animation-play-state:running}
+.lcd{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  justify-content:space-between;
+  min-width:116px;
+}
+.lcd-time{
+  font-family:var(--font-pixel);
+  font-size:27px;
+  line-height:1;
+  color:var(--w-led);
+  letter-spacing:.05em;
+  text-shadow:0 0 12px var(--w-led-soft);
+  font-variant-numeric:tabular-nums;
+}
+.lcd-meta{
+  font-family:var(--font-mono);
+  font-size:7.5px;
+  letter-spacing:.13em;
+  color:var(--w-dim);
+  white-space:nowrap;
+}
+.trackline{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:0 2px;
+  min-width:0;
+}
+.track-title{
+  flex:1 1 auto;
+  min-width:0;
+  overflow:hidden;
+  white-space:nowrap;
+  font-family:var(--font-pixel);
+  font-size:9px;
+  color:var(--w-led);
+  text-shadow:0 0 8px var(--w-led-soft);
+}
+.marquee-track{
+  display:inline-flex;
+  width:max-content;
+  white-space:nowrap;
+  animation:marquee 18s linear infinite;
+  animation-play-state:paused;
+}
+.marquee-track span{padding-right:52px}
+.marquee-track span + span{display:none}
+.marquee-track.is-scrolling span + span{display:inline}
+.is-playing .marquee-track{animation-play-state:running}
+@keyframes marquee{
+  from{transform:translateX(0)}
+  to{transform:translateX(-50%)}
+}
+.track-index{
+  flex:0 0 auto;
+  font-family:var(--font-mono);
+  font-size:8px;
+  color:var(--w-dim);
+  letter-spacing:.08em;
+}
+
+/* sliders */
+.slider{
+  --p:50%;
+  position:relative;
+  height:16px;
+  cursor:pointer;
+  touch-action:none;
+}
+.slider-track{
+  position:absolute;
+  left:0;right:0;top:6px;
+  height:5px;
+  background:var(--w-track);
+  border-top:1px solid var(--w-edge-lo);
+  border-bottom:1px solid rgba(255,255,255,.09);
+  box-shadow:inset 1px 1px 2px rgba(0,0,0,.8);
+}
+.slider-fill{
+  position:absolute;
+  left:0;top:0;bottom:0;
+  width:var(--p);
+  background:linear-gradient(90deg, rgba(255,255,255,.18), var(--w-led));
+  opacity:.78;
+}
+.slider-thumb{
+  position:absolute;
+  top:2px;
+  left:calc(var(--p) - 5px);
+  width:10px;height:13px;
+  background:linear-gradient(180deg, var(--w-edge-hi), var(--w-thumb) 40%, var(--w-face-2));
+  border:1px solid var(--w-edge-lo);
+  box-shadow:0 1px 2px rgba(0,0,0,.7);
+}
+.slider:focus-visible{outline:1px solid var(--w-led);outline-offset:2px}
+.slider.mini{height:12px;flex:1 1 auto;min-width:40px}
+.slider.mini .slider-track{top:4px;height:4px}
+.slider.mini .slider-thumb{top:1px;height:11px;width:8px;left:calc(var(--p) - 4px)}
+
+.controls-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.transport{display:flex;gap:3px}
+.tbtn{
+  width:33px;height:26px;
+  display:grid;place-items:center;
+  padding:0;
+  color:var(--w-text);
+  background:linear-gradient(180deg, var(--w-face), var(--w-face-2));
+  border-top:1px solid var(--w-edge-hi);
+  border-left:1px solid var(--w-edge-hi);
+  border-right:1px solid var(--w-edge-lo);
+  border-bottom:1px solid var(--w-edge-lo);
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.08), 0 1px 1px rgba(0,0,0,.35);
+  cursor:pointer;
+  border-radius:1px;
+}
+.tbtn:hover{filter:brightness(1.12)}
+.tbtn:active{transform:translateY(1px);box-shadow:inset 1px 1px 3px rgba(0,0,0,.65)}
+.tbtn svg{width:11px;height:11px;fill:currentColor;display:block}
+.tbtn.is-active{
+  color:#10160c;
+  background:linear-gradient(180deg, var(--w-led), color-mix(in srgb, var(--w-led) 64%, #000));
+  border-color:var(--w-edge-lo);
+  box-shadow:0 0 12px var(--w-led-soft), inset 1px 1px 0 rgba(255,255,255,.35);
+}
+.tbtn:focus-visible{outline:1px solid var(--w-led);outline-offset:2px}
+.toggles{display:flex;gap:3px;flex-wrap:wrap}
+.toggle{
+  font-family:var(--font-pixel);
+  font-size:7px;
+  letter-spacing:.02em;
+  line-height:1;
+  padding:5px 5px 4px;
+  min-width:24px;
+  color:var(--w-dim);
+  background:linear-gradient(180deg, var(--w-face), var(--w-face-2));
+  border-top:1px solid var(--w-edge-hi);
+  border-left:1px solid var(--w-edge-hi);
+  border-right:1px solid var(--w-edge-lo);
+  border-bottom:1px solid var(--w-edge-lo);
+  cursor:pointer;
+  border-radius:1px;
+}
+.toggle.is-on{
+  color:#10160c;
+  background:linear-gradient(180deg, var(--w-led), color-mix(in srgb, var(--w-led) 60%, #000));
+  box-shadow:0 0 8px var(--w-led-soft);
+}
+.toggle:focus-visible{outline:1px solid var(--w-led);outline-offset:2px}
+.mix-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.mix{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  flex:1 1 100px;
+  min-width:0;
+}
+.mix-label{
+  flex:0 0 auto;
+  font-family:var(--font-pixel);
+  font-size:6.5px;
+  color:var(--w-dim);
+  letter-spacing:.04em;
+}
+.clutter{
+  position:absolute;
+  top:6px;right:3px;bottom:6px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  align-items:center;
+  font-family:var(--font-pixel);
+  font-size:7px;
+  color:var(--w-dim);
+  opacity:.85;
+  pointer-events:none;
+}
+.clutter span:nth-child(2){color:var(--w-led)}
+
+/* playlist */
+.playlist{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+.pl-body{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  padding:4px;
+  flex:1 1 auto;
+  min-height:0;
+}
+.pl-top{display:flex;align-items:center;gap:5px}
+.pl-search{
+  flex:1 1 auto;
+  display:flex;
+  align-items:center;
+  gap:5px;
+  min-width:0;
+  height:19px;
+  padding:0 5px;
+  background:var(--w-inset);
+  border-top:1px solid var(--w-edge-lo);
+  border-left:1px solid var(--w-edge-lo);
+  border-right:1px solid rgba(255,255,255,.08);
+  border-bottom:1px solid rgba(255,255,255,.08);
+  box-shadow:inset 1px 1px 3px rgba(0,0,0,.65);
+}
+.pl-search svg{width:9px;height:9px;flex:0 0 auto;stroke:var(--w-dim);fill:none;stroke-width:1.4}
+.pl-search input{
+  width:100%;
+  border:0;
+  outline:none;
+  background:transparent;
+  color:var(--w-text);
+  font-family:var(--font-mono);
+  font-size:9px;
+  padding:0;
+  min-width:0;
+}
+.pl-search input::placeholder{color:var(--w-dim)}
+.pl-search:focus-within{outline:1px solid var(--w-led);outline-offset:1px}
+.pl-count{
+  font-family:var(--font-mono);
+  font-size:8px;
+  color:var(--w-dim);
+  white-space:nowrap;
+}
+.pl-head{
+  display:grid;
+  grid-template-columns:22px minmax(0,1fr) 40px;
+  gap:4px;
+  padding:0 5px;
+  font-family:var(--font-mono);
+  font-size:7px;
+  letter-spacing:.13em;
+  color:var(--w-dim);
+  border-bottom:1px solid var(--w-edge-lo);
+}
+.pl-head .dur{text-align:right}
+.pl-list{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  background:var(--w-inset);
+  border:1px solid var(--w-edge-lo);
+  box-shadow:inset 1px 1px 3px rgba(0,0,0,.55);
+  scrollbar-width:thin;
+  scrollbar-color:var(--w-frame) var(--w-inset);
+}
+.pl-list::-webkit-scrollbar{width:8px}
+.pl-list::-webkit-scrollbar-track{background:var(--w-inset)}
+.pl-list::-webkit-scrollbar-thumb{background:var(--w-frame);border:2px solid var(--w-inset)}
+.pl-list li{display:block}
+.pl-row{
+  display:grid;
+  grid-template-columns:22px minmax(0,1fr) 40px;
+  gap:4px;
+  width:100%;
+  align-items:center;
+  padding:2px 5px;
+  border:0;
+  background:transparent;
+  color:var(--w-text);
+  text-align:left;
+  font-family:var(--font-pixel);
+  font-size:8.5px;
+  line-height:1.55;
+  cursor:pointer;
+}
+.pl-row:nth-child(even){background:rgba(255,255,255,.025)}
+.pl-row:hover{background:rgba(255,255,255,.06)}
+.pl-row.is-current{background:var(--w-select);color:var(--w-select-text)}
+.pl-row.is-current .num{color:var(--w-led)}
+.pl-row .num{font-family:var(--font-mono);font-size:8px;color:var(--w-dim)}
+.pl-row .t{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0}
+.pl-row .dur{font-family:var(--font-mono);font-size:8px;text-align:right;color:var(--w-dim)}
+.pl-row.is-current .dur{color:var(--w-select-text);opacity:.8}
+.pl-row:focus-visible{outline:1px solid var(--w-led);outline-offset:-1px}
+.pl-foot{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:6px;
+  padding:1px 2px 0;
+  min-height:16px;
+}
+.pl-actions{display:flex;gap:2px}
+.pl-actions span{
+  font-family:var(--font-pixel);
+  font-size:6.5px;
+  color:var(--w-dim);
+  padding:2px 4px;
+  border:1px solid var(--w-edge-lo);
+  background:linear-gradient(180deg, var(--w-face), var(--w-face-2));
+}
+.pl-total{
+  font-family:var(--font-mono);
+  font-size:7.5px;
+  color:var(--w-dim);
+  white-space:nowrap;
+}
+
+/* equalizer */
+.eq-body{padding:6px;display:flex;flex-direction:column;gap:5px}
+.eq-top{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.eq-switches{display:flex;gap:2px}
+.eq-top .toggle{font-size:7px;padding:4px 5px}
+.preset{
+  flex:1 1 auto;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  text-align:left;
+  padding:4px 6px;
+  border:1px solid var(--w-edge-lo);
+  background:linear-gradient(180deg, var(--w-face), var(--w-face-2));
+  color:var(--w-text);
+  font-family:var(--font-mono);
+  font-size:8px;
+  cursor:pointer;
+}
+.preset span{color:var(--w-led);float:right}
+.preset:hover{filter:brightness(1.12)}
+.preset:focus-visible{outline:1px solid var(--w-led);outline-offset:2px}
+.eq-graph{
+  height:42px;
+  padding:2px 4px;
+  background:var(--w-screen);
+  border:1px solid var(--w-edge-lo);
+  box-shadow:inset 1px 1px 3px rgba(0,0,0,.75);
+}
+.eq-graph svg{width:100%;height:100%;display:block;overflow:visible}
+.eq-center{stroke:var(--w-dim);stroke-opacity:.28;stroke-width:1;stroke-dasharray:3 3}
+#eqLine{fill:none;stroke:var(--w-led);stroke-width:1.6;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 3px var(--w-led-soft))}
+.eq-dot{fill:var(--w-led)}
+.eq-rack{
+  display:grid;
+  grid-template-columns:repeat(10, minmax(0,1fr));
+  gap:2px;
+  align-items:end;
+}
+.eq-band{
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:3px;
+  min-width:0;
+  cursor:ns-resize;
+  touch-action:none;
+}
+.eq-slot{
+  position:relative;
+  height:46px;
+  background:var(--w-inset);
+  border-top:1px solid var(--w-edge-lo);
+  border-left:1px solid var(--w-edge-lo);
+  border-right:1px solid rgba(255,255,255,.08);
+  border-bottom:1px solid rgba(255,255,255,.08);
+  box-shadow:inset 1px 1px 3px rgba(0,0,0,.65);
+}
+.eq-fill{
+  position:absolute;
+  left:50%;
+  bottom:0;
+  width:4px;
+  height:var(--v,50%);
+  transform:translateX(-50%);
+  background:linear-gradient(to top, var(--w-led), var(--w-amber));
+  opacity:.6;
+  pointer-events:none;
+}
+.eq-zero{
+  position:absolute;
+  left:0;right:0;top:50%;
+  height:1px;
+  background:var(--w-dim);
+  opacity:.25;
+  pointer-events:none;
+}
+.eq-thumb{
+  position:absolute;
+  left:0;right:0;
+  top:var(--inv,50%);
+  height:6px;
+  transform:translateY(-50%);
+  background:linear-gradient(180deg, var(--w-edge-hi), var(--w-thumb) 45%, var(--w-face-2));
+  border:1px solid var(--w-edge-lo);
+  box-shadow:0 1px 2px rgba(0,0,0,.65);
+  pointer-events:none;
+}
+.eq-label{
+  font-family:var(--font-mono);
+  font-size:6.5px;
+  letter-spacing:.02em;
+  text-align:center;
+  color:var(--w-dim);
+  white-space:nowrap;
+}
+.eq-band:focus-visible{outline:1px solid var(--w-led);outline-offset:2px}
+.eq.is-off .eq-graph,
+.eq.is-off .eq-rack,
+.eq.is-off .eq-label{opacity:.42}
+
+/* visualizer */
+.viz{flex:0 0 auto;height:clamp(118px, 14vw, 146px);display:flex;flex-direction:column}
+.viz-screen{
+  position:relative;
+  flex:1 1 auto;
+  min-height:0;
+  overflow:hidden;
+  background:var(--w-screen);
+  border-top:1px solid var(--w-edge-lo);
+}
+.viz-screen::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:repeating-linear-gradient(0deg, rgba(0,0,0,.32) 0 1px, transparent 1px 3px);
+  opacity:.7;
+}
+.blob{
+  position:absolute;
+  width:55%;
+  aspect-ratio:1;
+  border-radius:50%;
+  filter:blur(20px);
+  mix-blend-mode:screen;
+  opacity:.75;
+  animation:drift 10s ease-in-out infinite alternate;
+  animation-play-state:paused;
+}
+.is-playing .blob{animation-play-state:running}
+.b1{
+  left:-8%;top:8%;
+  background:radial-gradient(circle at 50% 50%, var(--w-led) 0%, transparent 66%);
+  animation-duration:8s;
+}
+.b2{
+  right:-4%;top:-28%;
+  background:radial-gradient(circle at 50% 50%, var(--w-amber) 0%, transparent 64%);
+  animation-duration:11s;
+  animation-delay:-3s;
+}
+.b3{
+  left:32%;bottom:-42%;
+  background:radial-gradient(circle at 50% 50%, var(--w-blue) 0%, transparent 62%);
+  animation-duration:13s;
+  animation-delay:-6s;
+}
+@keyframes drift{
+  from{transform:translate3d(-4%, 2%, 0) scale(.9)}
+  to{transform:translate3d(8%, -8%, 0) scale(1.18)}
+}
+.viz-badge{
+  position:absolute;
+  left:7px;bottom:5px;
+  z-index:2;
+  font-family:var(--font-mono);
+  font-size:6.5px;
+  letter-spacing:.12em;
+  color:var(--w-dim);
+  background:color-mix(in srgb, var(--w-screen) 72%, transparent);
+  padding:2px 4px;
+}
+
+/* ---------- audit ---------- */
+.audit-grid{
+  display:grid;
+  grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr);
+  gap:clamp(28px, 5vw, 64px);
+  align-items:start;
+}
+.audit-left{display:flex;flex-direction:column;gap:30px;min-width:0}
+.audit-left .callout{margin-top:0}
+.now-mock{margin:0;max-width:460px}
+.now-window{
+  border:1px solid #3a3a3a;
+  border-radius:7px;
+  overflow:hidden;
+  background:#1b1b1b;
+  box-shadow:0 30px 60px -34px rgba(0,0,0,.9);
+  font-family:"Helvetica Neue", Arial, sans-serif;
+  color:#dcdcdc;
+}
+.now-chrome{
+  height:26px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:0 9px;
+  background:#2a2a2a;
+  border-bottom:1px solid #3a3a3a;
+}
+.now-chrome i{width:8px;height:8px;border-radius:50%;background:#4a4a4a}
+.now-chrome i:nth-child(1){background:#5b5b5b}
+.now-chrome span{margin-left:auto;font-size:10px;color:#8d8d8d}
+.now-body{padding:18px 20px 22px}
+.now-h{font-size:19px;font-weight:600;color:#f2f2f2;letter-spacing:-.01em}
+.now-sub{font-size:12.5px;color:#a8a8a8;margin-top:5px}
+.now-btns{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap}
+.eg-btn{
+  border:1px solid #4b4b4b;
+  border-radius:3px;
+  background:#303030;
+  color:#dcdcdc;
+  font-size:11px;
+  padding:3px 9px;
+  white-space:nowrap;
+}
+.eg-btn.primary{background:#3a3a3a;border-color:#5a5a5a}
+.eg-sep{height:1px;background:#343434;margin:16px 0 12px}
+.now-h2{font-size:14px;font-weight:600;color:#e8e8e8}
+.now-hint{font-size:11.5px;color:#8d8d8d;margin-top:8px;line-height:1.5}
+.now-empty{
+  margin-top:9px;
+  height:72px;
+  border-top:1px solid #303030;
+  background:linear-gradient(180deg, rgba(255,255,255,.012), transparent);
+}
+.now-mock figcaption{
+  margin-top:12px;
+  color:var(--dim);
+  font-size:12px;
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.tag{
+  font-family:var(--font-mono);
+  font-size:9.5px;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  color:var(--dim);
+  border:1px solid var(--line);
+  padding:2px 6px;
+  border-radius:2px;
+}
+.audit-lists{display:grid;gap:26px}
+.audit-block h3{
+  font-family:var(--font-mono);
+  font-size:10.5px;
+  letter-spacing:.15em;
+  text-transform:uppercase;
+  color:var(--dim);
+  font-weight:500;
+  margin-bottom:10px;
+}
+.check-list li,.cross-list li{
+  display:flex;
+  gap:10px;
+  padding:7px 0;
+  border-bottom:1px solid var(--line-soft);
+  font-size:14.5px;
+  color:var(--muted);
+  line-height:1.5;
+}
+.check-list li::before,.cross-list li::before{
+  flex:0 0 auto;
+  font-family:var(--font-mono);
+  font-size:11px;
+  line-height:1.6;
+}
+.check-list li::before{content:"✓";color:var(--green)}
+.cross-list li::before{content:"×";color:var(--red)}
+.tech-list{counter-reset:tech;display:grid;gap:10px}
+.tech-list li{
+  display:grid;
+  grid-template-columns:22px minmax(0,1fr);
+  gap:8px;
+  font-size:13.5px;
+  color:var(--muted);
+  line-height:1.55;
+}
+.tech-list li::before{
+  counter-increment:tech;
+  content:counter(tech, decimal-leading-zero);
+  font-family:var(--font-mono);
+  font-size:10px;
+  color:var(--amber);
+  padding-top:2px;
+}
+code{
+  font-family:var(--font-mono);
+  font-size:.86em;
+  color:var(--text);
+  background:rgba(255,255,255,.055);
+  border:1px solid var(--line-soft);
+  border-radius:2px;
+  padding:0 4px;
+  white-space:nowrap;
+}
+.tech-list code{white-space:normal}
+.callout{
+  margin-top:28px;
+  border-left:2px solid var(--amber);
+  padding:12px 0 12px 18px;
+  color:var(--text);
+  font-size:14.5px;
+  max-width:62ch;
+}
+.callout strong{font-weight:600}
+.callout .mono-label{display:block;margin-bottom:5px;color:var(--amber)}
+
+/* ---------- skins ---------- */
+.skins-grid{
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0,1fr));
+  gap:14px;
+}
+.skin-card{
+  border:1px solid var(--line);
+  background:linear-gradient(180deg, var(--surface), var(--bg-soft));
+  border-radius:var(--radius);
+  padding:14px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  min-width:0;
+}
+.skin-card h4{font-size:16px}
+.skin-card p{font-size:13px;color:var(--muted);line-height:1.5}
+.skin-tag{
+  margin-top:auto;
+  font-family:var(--font-mono);
+  font-size:9px;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  color:var(--dim);
+}
+.mini{
+  --m-frame:#3c433b;
+  --m-title-a:#67715f;
+  --m-title-b:#373f36;
+  --m-screen:#07110a;
+  --m-led:#a8f078;
+  --m-text:#e8eee3;
+  --m-dim:#aab5a7;
+  --m-face:#4a5348;
+  --m-face-2:#394139;
+  --m-edge-hi:#8e988a;
+  --m-edge-lo:#151a15;
+  background:var(--m-frame);
+  border:1px solid var(--m-edge-lo);
+  box-shadow:inset 1px 1px 0 var(--m-edge-hi), inset -1px -1px 0 var(--m-edge-lo);
+  padding:3px;
+  border-radius:2px;
+  height:104px;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  overflow:hidden;
+}
+.mini.midnight{
+  --m-frame:#283246;
+  --m-title-a:#405578;
+  --m-title-b:#1a2537;
+  --m-screen:#050c17;
+  --m-led:#7ee8ff;
+  --m-text:#e2ecfb;
+  --m-dim:#a3b6d0;
+  --m-face:#33425c;
+  --m-face-2:#26334a;
+  --m-edge-hi:#7b90b2;
+  --m-edge-lo:#0d141f;
+}
+.mini.brass{
+  --m-frame:#4a4237;
+  --m-title-a:#8b7b63;
+  --m-title-b:#433a2e;
+  --m-screen:#171207;
+  --m-led:#ffc46b;
+  --m-text:#f2ead9;
+  --m-dim:#c1b49c;
+  --m-face:#5b5143;
+  --m-face-2:#443b30;
+  --m-edge-hi:#c1ae90;
+  --m-edge-lo:#1d1914;
+}
+.mini-title{
+  height:14px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 4px;
+  background:linear-gradient(180deg, var(--m-title-a), var(--m-title-b));
+  font-family:var(--font-pixel);
+  font-size:5.5px;
+  letter-spacing:.05em;
+  color:var(--m-text);
+}
+.mini-title i{
+  width:4px;height:4px;border-radius:50%;
+  background:var(--m-led);
+  box-shadow:0 0 5px var(--m-led);
+}
+.mini-body{
+  flex:1;
+  background:var(--m-screen);
+  border:1px solid var(--m-edge-lo);
+  padding:4px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  min-height:0;
+}
+.mini-screen{display:flex;align-items:flex-end;justify-content:space-between;gap:3px;min-height:0}
+.mini-time{
+  font-family:var(--font-pixel);
+  font-size:13px;
+  line-height:1;
+  color:var(--m-led);
+  text-shadow:0 0 7px color-mix(in srgb, var(--m-led) 45%, transparent);
+}
+.mini-bars{display:flex;align-items:flex-end;gap:1px;height:22px;flex:1;justify-content:flex-end;max-width:52%}
+.mini-bars i{display:block;width:2px;background:var(--m-led);opacity:.8}
+.mini-bars i:nth-child(1){height:35%}
+.mini-bars i:nth-child(2){height:70%}
+.mini-bars i:nth-child(3){height:48%}
+.mini-bars i:nth-child(4){height:90%;background:var(--m-led)}
+.mini-bars i:nth-child(5){height:55%}
+.mini-bars i:nth-child(6){height:78%}
+.mini-bars i:nth-child(7){height:42%}
+.mini-bars i:nth-child(8){height:62%}
+.mini-actions{display:flex;gap:2px}
+.mini-actions i{display:block;height:9px;flex:1;background:linear-gradient(180deg, var(--m-face), var(--m-face-2));border-top:1px solid var(--m-edge-hi);border-left:1px solid var(--m-edge-hi);border-right:1px solid var(--m-edge-lo);border-bottom:1px solid var(--m-edge-lo)}
+.mini-import{
+  border:1px dashed var(--line-strong);
+  background:transparent;
+  box-shadow:none;
+  display:grid;
+  place-items:center;
+  color:var(--dim);
+}
+.mini-import svg{width:28px;height:28px;stroke:currentColor;fill:none;stroke-width:1.2}
+.mini-import span{
+  position:absolute;
+  font-family:var(--font-mono);
+  font-size:8px;
+  letter-spacing:.12em;
+}
+.skin-card.custom{position:relative;border-style:dashed;background:transparent}
+.skin-card.custom .mini{width:100%}
+.skin-card.custom .skin-tag{color:var(--amber)}
+
+.facts-strip{
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0,1fr));
+  margin-top:clamp(34px, 5vw, 54px);
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+}
+.fact{
+  padding:20px 22px 20px 0;
+  border-right:1px solid var(--line-soft);
+  min-width:0;
+}
+.fact:last-child{border-right:0;padding-right:0}
+.fact strong{
+  display:block;
+  font-family:var(--font-mono);
+  font-size:clamp(16px, 1.6vw, 21px);
+  font-weight:500;
+  color:var(--text);
+  letter-spacing:-.02em;
+  margin-bottom:5px;
+  white-space:nowrap;
+}
+.fact span{display:block;font-size:12.5px;line-height:1.5;color:var(--dim);max-width:24ch}
+.fact:not(:first-child){padding-left:22px}
+
+/* modern library mock */
+.modern-block{
+  display:grid;
+  grid-template-columns:minmax(0,.72fr) minmax(0,1.28fr);
+  gap:clamp(28px, 5vw, 56px);
+  align-items:center;
+  margin-top:clamp(48px, 7vw, 80px);
+}
+.modern-copy h3{margin-bottom:14px}
+.modern-copy p{color:var(--muted);font-size:15.5px;max-width:44ch}
+.modern-copy .mono-label{display:block;margin-bottom:12px;color:var(--cyan)}
+.modern-mock{
+  border:1px solid #2b3730;
+  border-radius:9px;
+  overflow:hidden;
+  background:#0d1310;
+  box-shadow:0 38px 70px -38px rgba(0,0,0,.92);
+  font-family:var(--font-mono);
+  color:#dbe7dd;
+  min-width:0;
+}
+.mm-titlebar{
+  height:24px;
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:0 9px;
+  background:linear-gradient(180deg,#1d2821,#121914);
+  border-bottom:1px solid #26332a;
+  font-size:8px;
+  color:#9fb1a2;
+  letter-spacing:.08em;
+}
+.mm-dots{display:flex;gap:4px}
+.mm-dots i{width:6px;height:6px;border-radius:50%;background:#35443a}
+.mm-dots i:nth-child(1){background:#8c6c3d}
+.mm-dots i:nth-child(2){background:#4a6b4a}
+.mm-title-meta{margin-left:auto;color:#728578}
+.mm-shell{display:grid;grid-template-columns:132px minmax(0,1fr);min-height:344px}
+.mm-side{
+  border-right:1px solid #1f2a23;
+  background:linear-gradient(180deg,#111a14,#0c120e);
+  padding:12px 9px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+.mm-brand{
+  font-family:var(--font-display);
+  font-size:12px;
+  font-weight:600;
+  letter-spacing:-.02em;
+  color:#e6efe7;
+  padding-left:5px;
+}
+.mm-nav{display:flex;flex-direction:column;gap:2px}
+.mm-nav span{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:5px 6px;
+  border-radius:4px;
+  font-size:8.5px;
+  color:#8fa395;
+  white-space:nowrap;
+}
+.mm-nav span.is-active{background:#1c2a20;color:#d8f0c9}
+.mm-nav svg{width:9px;height:9px;stroke:currentColor;fill:none;stroke-width:1.3;flex:0 0 auto}
+.mm-side-foot{
+  margin-top:auto;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:7.5px;
+  color:#728578;
+  padding-left:5px;
+}
+.mm-skin-dot{width:5px;height:5px;border-radius:50%;background:#a4e57f;box-shadow:0 0 6px rgba(164,229,127,.6)}
+.mm-main{padding:12px 14px 14px;min-width:0;background:radial-gradient(120% 100% at 80% 0%, rgba(240,180,92,.045), transparent 60%)}
+.mm-top{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.mm-search{
+  flex:1 1 auto;
+  min-width:0;
+  height:24px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:0 8px;
+  border:1px solid #27332b;
+  border-radius:5px;
+  background:#0b100d;
+  color:#738779;
+  font-size:8px;
+}
+.mm-search svg{width:9px;height:9px;stroke:currentColor;fill:none;stroke-width:1.4;flex:0 0 auto}
+.mm-count{font-size:7px;color:#6e8173;white-space:nowrap;letter-spacing:.06em}
+.mm-heading{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px}
+.mm-heading h4{font-family:var(--font-body);font-size:13px;font-weight:600;color:#e8f0e9;letter-spacing:-.01em}
+.mm-heading span{font-size:7px;color:#7f9584;letter-spacing:.08em}
+.mm-grid{display:grid;grid-template-columns:repeat(3, minmax(0,1fr));gap:10px}
+.mm-album{min-width:0}
+.mm-cover{
+  aspect-ratio:1;
+  border-radius:5px;
+  position:relative;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,.08);
+  display:flex;
+  align-items:flex-end;
+  padding:7px;
+  font-size:6.5px;
+  letter-spacing:.12em;
+  color:rgba(255,255,255,.72);
+  text-shadow:0 1px 3px rgba(0,0,0,.6);
+}
+.mm-cover::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:linear-gradient(180deg, transparent 55%, rgba(0,0,0,.45));
+}
+.mm-cover span{position:relative;z-index:1}
+.c1{background:radial-gradient(circle at 68% 30%, #f2b45c 0 16%, #7a3e1d 17% 28%, #23150e 29% 100%)}
+.c2{background:conic-gradient(from 200deg at 40% 55%, #0a2233, #1d6b7a, #0a2233, #133040, #0a2233)}
+.c3{background:linear-gradient(135deg,#2a0d12 0 38%, #7c2530 39% 47%, #130a0c 48% 100%)}
+.c4{background:radial-gradient(circle at 30% 70%, #7fbc64 0 18%, #1c4527 19% 44%, #0a1a0e 45% 100%)}
+.c5{background:linear-gradient(180deg,#f0d9a8 0 48%, #b7753f 49% 58%, #4c2a1b 59% 100%)}
+.c6{background:radial-gradient(ellipse at 50% 36%, #c7c0d8 0 14%, #57506b 15% 36%, #1a1722 37% 100%)}
+.mm-album figcaption{font-family:var(--font-body);font-size:9px;font-weight:600;color:#dbe7dd;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mm-album figcaption span{display:block;font-family:var(--font-mono);font-size:7px;font-weight:400;color:#7f9584;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mm-player{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:9px 12px;
+  border-top:1px solid #222f27;
+  background:#101712;
+}
+.mm-now{display:flex;align-items:center;gap:8px;min-width:0;flex:0 1 210px}
+.mm-thumb{
+  width:30px;height:30px;
+  border-radius:3px;
+  flex:0 0 auto;
+  border:1px solid rgba(255,255,255,.08);
+}
+.mm-now div:last-child{min-width:0}
+.mm-now strong{display:block;font-family:var(--font-body);font-size:9px;font-weight:600;color:#e8f0e9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mm-now span{display:block;font-size:7px;color:#7f9584;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.mm-transport{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.mm-transport i{
+  display:grid;place-items:center;
+  width:16px;height:16px;
+  border-radius:50%;
+  color:#9db1a2;
+}
+.mm-transport i svg{width:8px;height:8px;fill:currentColor}
+.mm-transport i.play{width:22px;height:22px;background:#d8f0c9;color:#152015}
+.mm-progress{flex:1 1 auto;min-width:34px;height:3px;background:#263329;border-radius:2px;overflow:hidden}
+.mm-progress span{display:block;width:43%;height:100%;background:#a4e57f}
+.mm-time{font-size:6.5px;color:#7f9584;white-space:nowrap}
+.mm-vol{flex:0 0 46px;height:3px;background:#263329;border-radius:2px;overflow:hidden}
+.mm-vol span{display:block;width:68%;height:100%;background:#7f9584}
+
+/* ---------- wishlist ---------- */
+.lanes{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0,1fr));
+  gap:16px;
+  align-items:stretch;
+}
+.lane{
+  position:relative;
+  border:1px solid var(--line);
+  border-top:2px solid var(--lane-color, var(--amber));
+  border-radius:var(--radius);
+  background:linear-gradient(180deg, var(--surface), rgba(14,18,16,.35));
+  padding:20px 18px 8px;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+}
+.lane-core{--lane-color:var(--amber)}
+.lane-character{--lane-color:var(--green)}
+.lane-magic{--lane-color:var(--cyan)}
+.lane-head{padding-bottom:14px;border-bottom:1px solid var(--line-soft)}
+.lane-head .mono-label{color:var(--lane-color);margin-bottom:9px;display:block}
+.lane-head h3{font-size:22px;margin-bottom:6px}
+.lane-head p{font-size:13px;color:var(--dim);line-height:1.5;min-height:2.8em}
+.wish-list{display:flex;flex-direction:column}
+.wish-item{
+  padding:11px 0 10px;
+  border-bottom:1px solid var(--line-soft);
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.wish-item:last-child{border-bottom:0}
+.wish-title{
+  display:flex;
+  align-items:baseline;
+  gap:7px;
+  font-size:14px;
+  font-weight:600;
+  color:var(--text);
+  line-height:1.35;
+}
+.wish-title::before{
+  content:"";
+  flex:0 0 auto;
+  width:4px;height:4px;
+  border-radius:50%;
+  background:var(--lane-color);
+  box-shadow:0 0 5px color-mix(in srgb, var(--lane-color) 60%, transparent);
+  transform:translateY(-1px);
+}
+.wish-desc{font-size:12.5px;color:var(--muted);line-height:1.5;padding-left:11px}
+.lane-note{
+  margin-top:auto;
+  padding:10px 0 6px;
+  color:var(--dim);
+  font-family:var(--font-mono);
+  font-size:9px;
+  letter-spacing:.09em;
+  text-transform:uppercase;
+}
+.quality-bar{
+  margin-top:24px;
+  display:grid;
+  grid-template-columns:repeat(5, minmax(0,1fr));
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+}
+.quality-cell{
+  padding:16px 18px 15px 0;
+  border-right:1px solid var(--line-soft);
+  min-width:0;
+}
+.quality-cell:last-child{border-right:0}
+.quality-cell strong{
+  display:block;
+  font-family:var(--font-mono);
+  font-size:clamp(18px, 1.9vw, 24px);
+  font-weight:500;
+  color:var(--text);
+  letter-spacing:-.02em;
+}
+.quality-cell span{
+  display:block;
+  margin-top:3px;
+  font-family:var(--font-mono);
+  font-size:9px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--dim);
+}
+.quality-cell:not(:first-child){padding-left:18px}
+.anti{
+  margin-top:22px;
+  display:flex;
+  align-items:center;
+  gap:10px 18px;
+  flex-wrap:wrap;
+  font-size:12.5px;
+  color:var(--dim);
+}
+.anti strong{
+  font-family:var(--font-mono);
+  font-size:9.5px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--muted);
+  font-weight:500;
+}
+.anti span{display:inline-flex;align-items:center;gap:6px}
+.anti span::before{content:"×";color:var(--red);font-family:var(--font-mono);font-size:11px}
+
+/* ---------- build ---------- */
+.decisions{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0,1fr));
+  gap:1px;
+  background:var(--line-soft);
+  border:1px solid var(--line-soft);
+  border-radius:var(--radius);
+  overflow:hidden;
+}
+.decision{
+  background:var(--bg-soft);
+  padding:clamp(20px, 3vw, 30px);
+  min-width:0;
+}
+.decision-tag{
+  font-family:var(--font-mono);
+  font-size:9px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--amber);
+  margin-bottom:12px;
+  display:block;
+}
+.decision h3{font-size:20px;margin-bottom:10px}
+.decision p{font-size:14px;color:var(--muted);line-height:1.6;max-width:48ch}
+.decision p code{white-space:normal}
+.build-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr);
+  gap:clamp(24px, 4vw, 48px);
+  margin-top:clamp(28px, 4vw, 44px);
+  align-items:start;
+}
+.build-grid > *{min-width:0}
+.stack-panel{
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:linear-gradient(180deg, var(--surface), var(--bg-soft));
+  padding:18px 18px 16px;
+  min-width:0;
+}
+.stack-panel .mono-label{color:var(--dim);display:block;margin-bottom:14px}
+.stack-group{
+  display:grid;
+  grid-template-columns:74px minmax(0,1fr);
+  gap:10px;
+  padding:9px 0;
+  border-bottom:1px solid var(--line-soft);
+  align-items:start;
+  min-width:0;
+}
+.stack-group:last-of-type{border-bottom:0}
+.stack-label{
+  font-family:var(--font-mono);
+  font-size:9px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--dim);
+  padding-top:3px;
+}
+.stack-chips{display:flex;flex-wrap:wrap;gap:4px;min-width:0}
+.crate{
+  font-family:var(--font-mono);
+  font-size:10px;
+  color:var(--muted);
+  border:1px solid var(--line-soft);
+  background:rgba(255,255,255,.02);
+  padding:2px 6px;
+  border-radius:2px;
+  white-space:nowrap;
+}
+.crate b{font-weight:400;color:var(--text)}
+.stack-foot{
+  margin-top:12px;
+  font-family:var(--font-mono);
+  font-size:9px;
+  letter-spacing:.05em;
+  color:var(--dim);
+  line-height:1.6;
+}
+.tree{
+  margin:0;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:#0b0f0c;
+  padding:16px 18px;
+  overflow-x:auto;
+  font-family:var(--font-mono);
+  font-size:10.5px;
+  line-height:1.7;
+  color:var(--muted);
+  min-width:0;
+  max-width:100%;
+  white-space:pre;
+  tab-size:2;
+}
+.tree .root{color:var(--text)}
+.tree .c{color:var(--dim)}
+.tree .a{color:var(--amber)}
+.build-note{
+  position:relative;
+  margin-top:14px;
+  padding-left:20px;
+  color:var(--dim);
+  font-size:12.5px;
+  line-height:1.55;
+  max-width:58ch;
+}
+.build-note::before{
+  content:"→";
+  position:absolute;
+  left:0;
+  top:0;
+  font-family:var(--font-mono);
+  color:var(--amber);
+}
+.build-note code{white-space:normal;overflow-wrap:anywhere}
+
+/* ---------- plan ---------- */
+.plan-head{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:24px;
+  flex-wrap:wrap;
+  margin-bottom:clamp(30px, 5vw, 48px);
+}
+.estimate{
+  display:flex;
+  align-items:baseline;
+  gap:10px;
+  border-bottom:1px solid var(--line);
+  padding-bottom:8px;
+}
+.estimate strong{
+  font-family:var(--font-mono);
+  font-size:clamp(30px, 3.6vw, 42px);
+  font-weight:400;
+  letter-spacing:-.04em;
+  color:var(--amber);
+  line-height:1;
+}
+.estimate span{
+  font-family:var(--font-mono);
+  font-size:10px;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  color:var(--dim);
+  max-width:12ch;
+  line-height:1.5;
+}
+.timeline{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  gap:0;
+  margin-left:7px;
+}
+.timeline::before{
+  content:"";
+  position:absolute;
+  left:4px;top:10px;bottom:34px;
+  width:1px;
+  background:linear-gradient(180deg, var(--line-strong), var(--line-soft) 88%, transparent);
+}
+.phase{
+  position:relative;
+  display:grid;
+  grid-template-columns:28px minmax(0,1fr);
+  gap:18px;
+  padding-bottom:26px;
+}
+.phase-marker{
+  position:relative;
+  width:9px;height:9px;
+  margin-top:8px;
+  border-radius:50%;
+  background:var(--bg);
+  border:1px solid var(--line-strong);
+  z-index:1;
+}
+.phase-marker::after{
+  content:"";
+  position:absolute;
+  inset:2px;
+  border-radius:50%;
+  background:var(--dim);
+}
+.phase.is-key .phase-marker{border-color:var(--amber);box-shadow:0 0 0 3px rgba(240,180,92,.08)}
+.phase.is-key .phase-marker::after{background:var(--amber);box-shadow:0 0 8px rgba(240,180,92,.6)}
+.phase-card{
+  border:1px solid var(--line-soft);
+  border-radius:var(--radius);
+  background:linear-gradient(180deg, rgba(19,25,21,.55), rgba(11,15,12,.2));
+  padding:18px 20px 16px;
+  min-width:0;
+}
+.phase-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:7px}
+.phase-title{
+  font-family:var(--font-display);
+  font-size:19px;
+  font-weight:600;
+  letter-spacing:-.02em;
+  color:var(--text);
+  line-height:1.25;
+}
+.phase-title .phase-num{
+  font-family:var(--font-mono);
+  font-size:10px;
+  font-weight:400;
+  color:var(--dim);
+  letter-spacing:.06em;
+  margin-right:7px;
+}
+.duration{
+  font-family:var(--font-mono);
+  font-size:9px;
+  letter-spacing:.06em;
+  color:var(--amber);
+  border:1px solid rgba(240,180,92,.25);
+  background:rgba(240,180,92,.045);
+  padding:1px 6px;
+  border-radius:2px;
+  white-space:nowrap;
+}
+.phase-card p{font-size:13.5px;color:var(--muted);line-height:1.6;max-width:68ch}
+.done-line{
+  display:flex;
+  gap:8px;
+  margin-top:9px;
+  font-size:12.5px;
+  color:var(--text);
+  line-height:1.5;
+}
+.done-line::before{
+  content:"✓";
+  font-family:var(--font-mono);
+  color:var(--green);
+  flex:0 0 auto;
+}
+.done-line b{font-weight:500;color:var(--dim);font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding-top:3px;flex:0 0 auto}
+.plan-bottom{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:16px;
+  margin-top:18px;
+  align-items:start;
+}
+.first-move{
+  border:1px solid rgba(240,180,92,.3);
+  border-radius:var(--radius);
+  background:linear-gradient(135deg, rgba(240,180,92,.07), rgba(240,180,92,.015));
+  padding:22px;
+  min-width:0;
+}
+.first-move .mono-label{display:block;margin-bottom:10px;color:var(--amber)}
+.first-move h3{font-size:20px;margin-bottom:9px}
+.first-move p{font-size:13.5px;color:var(--muted);line-height:1.6;max-width:52ch}
+.risks{
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:8px 20px 6px;
+  background:var(--bg-soft);
+  min-width:0;
+}
+.risk{
+  display:grid;
+  grid-template-columns:minmax(0,.72fr) minmax(0,1.28fr);
+  gap:14px;
+  padding:11px 0;
+  border-bottom:1px solid var(--line-soft);
+  align-items:start;
+}
+.risk:last-child{border-bottom:0}
+.risk-name{
+  font-size:12.5px;
+  font-weight:600;
+  color:var(--text);
+  display:flex;
+  gap:7px;
+  align-items:baseline;
+  line-height:1.4;
+}
+.risk-name::before{
+  content:"";
+  flex:0 0 auto;
+  width:4px;height:4px;
+  border-radius:50%;
+  background:var(--amber);
+  transform:translateY(-1px);
+}
+.risk-mit{font-size:12px;color:var(--dim);line-height:1.5}
+
+/* ---------- finale ---------- */
+.finale{padding-block:clamp(50px, 7vw, 84px);border-top:1px solid var(--line-soft)}
+.finale-box{
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:clamp(26px, 5vw, 48px);
+  background:
+    radial-gradient(700px 280px at 84% 0%, rgba(240,180,92,.07), transparent 65%),
+    linear-gradient(180deg, var(--surface), var(--bg-soft));
+}
+.finale-box h2{max-width:18ch;margin:12px 0 16px}
+.finale-box p{font-size:15px;color:var(--muted);max-width:60ch;line-height:1.65}
+.decision-line{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  margin-top:24px;
+}
+.decision-line span{
+  font-family:var(--font-mono);
+  font-size:10px;
+  letter-spacing:.04em;
+  color:var(--muted);
+  border:1px solid var(--line);
+  padding:4px 8px;
+  border-radius:2px;
+}
+.honest{
+  margin-top:24px;
+  padding-top:16px;
+  border-top:1px solid var(--line-soft);
+  font-family:var(--font-mono);
+  font-size:10.5px;
+  line-height:1.65;
+  color:var(--dim);
+  max-width:74ch;
+}
+footer{
+  border-top:1px solid var(--line-soft);
+  padding-block:28px 34px;
+}
+.foot-inner{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  flex-wrap:wrap;
+}
+.foot-brand{display:flex;align-items:center;gap:9px;font-family:var(--font-display);font-size:13px;font-weight:600;letter-spacing:-.02em}
+.foot-note{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.06em;color:var(--dim)}
+.foot-line{font-size:12.5px;color:var(--dim);max-width:56ch}
+
+/* ---------- responsive ---------- */
+@media (max-width: 1020px){
+  .skins-grid{grid-template-columns:repeat(2, minmax(0,1fr))}
+  .lanes{grid-template-columns:repeat(2, minmax(0,1fr))}
+  .lane-magic{grid-column:1 / -1}
+  .lane-magic .wish-list{display:grid;grid-template-columns:repeat(2, minmax(0,1fr));gap:0 22px}
+  .lane-magic .lane-note{grid-column:1 / -1}
+  .modern-block{grid-template-columns:1fr;align-items:start}
+  .modern-copy p{max-width:60ch}
+}
+@media (max-width: 900px){
+  .section-head{grid-template-columns:1fr;align-items:start;gap:16px}
+  .section-head .lede{max-width:64ch}
+  .audit-grid{grid-template-columns:1fr}
+  .now-mock{max-width:420px}
+  .desk-grid{grid-template-columns:minmax(0,1fr);max-width:520px}
+  .facts-strip{grid-template-columns:repeat(2, minmax(0,1fr))}
+  .fact:nth-child(2){border-right:0;padding-right:0}
+  .fact:nth-child(3),.fact:nth-child(4){padding-top:16px;border-top:1px solid var(--line-soft)}
+  .fact:nth-child(3){padding-left:0}
+  .fact:nth-child(4){padding-left:22px}
+  .quality-bar{grid-template-columns:repeat(3, minmax(0,1fr))}
+  .quality-cell:nth-child(3){border-right:0}
+  .quality-cell:nth-child(4),.quality-cell:nth-child(5){border-top:1px solid var(--line-soft);padding-top:14px}
+  .quality-cell:nth-child(4){padding-left:0}
+  .build-grid{grid-template-columns:1fr}
+  .plan-bottom{grid-template-columns:1fr}
+}
+@media (max-width: 760px){
+  .wrap{padding-left:max(18px, env(safe-area-inset-left, 0px));padding-right:max(18px, env(safe-area-inset-right, 0px))}
+  .topbar-inner{gap:14px}
+  .nav{display:none}
+  .top-status{margin-left:auto}
+  .hero{padding-block:40px 48px}
+  .hero h1{margin:14px 0 18px}
+  .stage-head{align-items:flex-start}
+  .stage-note{max-width:34ch}
+  .lanes{grid-template-columns:1fr}
+  .lane-magic{grid-column:auto}
+  .lane-magic .wish-list{display:flex}
+  .decisions{grid-template-columns:1fr}
+  .quality-bar{grid-template-columns:repeat(2, minmax(0,1fr))}
+  .quality-cell:nth-child(3){border-right:1px solid var(--line-soft);padding-left:18px}
+  .quality-cell:nth-child(4){border-right:1px solid var(--line-soft)}
+  .quality-cell:nth-child(5){padding-left:18px}
+  .quality-cell:nth-child(3){border-top:1px solid var(--line-soft);padding-top:14px}
+  .quality-cell:nth-child(5){border-right:0}
+  .mm-shell{grid-template-columns:1fr;min-height:0}
+  .mm-side{display:none}
+  .mm-grid{grid-template-columns:repeat(2, minmax(0,1fr))}
+  .mm-player{flex-wrap:wrap;gap:8px 12px}
+  .mm-now{flex:1 1 160px}
+  .mm-progress{order:5;flex-basis:100%}
+  .mm-time{order:6}
+  .mm-vol{display:none}
+  .mm-transport{order:2}
+  .mm-main{padding:11px 11px 13px}
+  .modern-block{margin-top:40px}
+  .estimate strong{font-size:32px}
+}
+@media (max-width: 520px){
+  h1{font-size:clamp(32px, 10vw, 42px)}
+  h2{font-size:clamp(26px, 8vw, 34px)}
+  .hero-chips{gap:6px}
+  .chip{font-size:10px;padding:4px 8px}
+  .skin-switch{width:100%;overflow-x:auto}
+  .skin-btn{flex:1;white-space:nowrap;padding:6px 7px}
+  .desk{padding:10px;border-radius:7px}
+  .main-body{padding-right:20px}
+  .lcd{min-width:94px}
+  .lcd-time{font-size:23px}
+  .tbtn{width:30px;height:24px}
+  .toggles{gap:2px}
+  .toggle{font-size:6.5px;padding:4px 4px 3px;min-width:21px}
+  .pl-head,.pl-row{grid-template-columns:20px minmax(0,1fr) 36px}
+  .pl-search input{font-size:8px}
+  .pl-actions span{font-size:6px;padding:2px 3px}
+  .pl-total{font-size:7px}
+  .eq-label{font-size:5.5px}
+  .facts-strip{grid-template-columns:1fr}
+  .fact{padding:14px 0 !important;border-right:0;border-top:1px solid var(--line-soft)}
+  .fact:first-child{border-top:0}
+  .fact strong{font-size:16px}
+  .fact span{max-width:38ch}
+  .quality-bar{grid-template-columns:1fr}
+  .quality-cell{padding:12px 0 !important;border-right:0;border-top:1px solid var(--line-soft)}
+  .quality-cell:first-child{border-top:0}
+  .quality-cell strong{font-size:18px}
+  .risk{grid-template-columns:1fr;gap:3px}
+  .phase{grid-template-columns:18px minmax(0,1fr);gap:10px}
+  .phase-card{padding:15px 15px 14px}
+  .phase-head{gap:7px}
+  .phase-title{font-size:17px}
+  .done-line{flex-wrap:wrap}
+  .mm-titlebar{font-size:7px}
+  .mm-title-meta{display:none}
+  .mm-player{padding:8px}
+  .mm-time{display:none}
+  .mm-now strong{font-size:8px}
+  .mm-now span{font-size:6.5px}
+  .mm-album figcaption{font-size:8px}
+  .mm-album figcaption span{font-size:6.5px}
+  .mm-heading h4{font-size:12px}
+  .anti{font-size:11.5px;gap:6px 14px}
+  .foot-inner{flex-direction:column;align-items:flex-start;gap:8px}
+}
+
+@media (prefers-reduced-motion: reduce){
+  .bar{animation:none !important;height:var(--h1)}
+  .marquee-track{animation:none !important}
+  .blob{animation:none !important}
+}
+</style>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="#top" aria-label="MacAmp 2.0, к началу страницы">
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+      <span class="brand-name">MacAmp</span>
+      <span class="brand-ver">2.0</span>
+    </a>
+    <nav class="nav" aria-label="Разделы страницы">
+      <a href="#audit">Аудит</a>
+      <a href="#direction">Направление</a>
+      <a href="#wishes">Хотелки</a>
+      <a href="#build">Сборка</a>
+      <a href="#plan">План</a>
+    </nav>
+    <span class="top-status"><span class="led"></span>концепт</span>
+  </div>
+</header>
+
+<main>
+  <section class="hero" id="top">
+    <div class="wrap">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="led"></span>продуктовый бриф · macOS · ноябрь 2026</p>
+        <h1>Плеер, в котором снова есть характер.</h1>
+        <p class="lede">MacAmp возвращает музыке интерфейс: классические окна, живые скины и эквалайзер. Плюс нативный macOS, нормальный поиск по коллекции и ни одного рекламного баннера.</p>
+        <div class="chips hero-chips">
+          <span class="chip">6 этапов</span>
+          <span class="chip">Rust + egui</span>
+          <span class="chip">локальные файлы</span>
+          <span class="chip chip-warn">сейчас: MVP-спайк</span>
+        </div>
+      </div>
+
+      <div class="stage-block">
+        <div class="stage-head">
+          <div>
+            <p class="mono-label">живой макет</p>
+            <p class="stage-note">Нажми Play, переключи скин, потяни ползунки. Это не скриншот.</p>
+          </div>
+          <div class="skin-switch" role="group" aria-label="Скин макета">
+            <button class="skin-btn is-active" data-skin="graphite" aria-pressed="true">Graphite</button>
+            <button class="skin-btn" data-skin="midnight" aria-pressed="false">Midnight</button>
+            <button class="skin-btn" data-skin="brass" aria-pressed="false">Brass</button>
+          </div>
+        </div>
+
+        <div class="desk" id="desk" data-skin="graphite" role="group" aria-label="Интерактивный макет MacAmp">
+          <div class="desk-grid">
+            <div class="col">
+              <!-- main window -->
+              <section class="win main" aria-label="Основное окно">
+                <div class="win-title">
+                  <span class="win-brand"><span class="win-logo" aria-hidden="true"><i></i><i></i><i></i></span>MACAMP <b>2.0</b></span>
+                  <span class="win-actions" aria-hidden="true"><i>–</i><i>×</i></span>
+                </div>
+                <div class="main-body">
+                  <div class="screen">
+                    <div class="scope" id="scope" aria-hidden="true"></div>
+                    <div class="lcd">
+                      <div class="lcd-time" id="clock">01:23</div>
+                      <div class="lcd-meta">128 KBPS · 44 KHZ</div>
+                    </div>
+                  </div>
+                  <div class="trackline">
+                    <div class="track-title">
+                      <div class="marquee-track" id="marquee">
+                        <span id="marqueeText">Boards of Canada — Roygbiv</span>
+                        <span aria-hidden="true" id="marqueeText2">Boards of Canada — Roygbiv</span>
+                      </div>
+                    </div>
+                    <span class="track-index" id="trackIndex">1/10</span>
+                  </div>
+                  <div class="seek slider" id="seek" role="slider" tabindex="0" aria-label="Позиция воспроизведения" aria-valuemin="0" aria-valuemax="100" aria-valuenow="55" aria-valuetext="1:23 из 2:32">
+                    <div class="slider-track"><div class="slider-fill"></div></div>
+                    <div class="slider-thumb"></div>
+                  </div>
+                  <div class="controls-row">
+                    <div class="transport" role="group" aria-label="Управление воспроизведением">
+                      <button class="tbtn" id="prevBtn" aria-label="Предыдущий трек">
+                        <svg viewBox="0 0 13 12" aria-hidden="true"><path d="M10.5 1 2.5 6l8 5V1Z"/><rect x="10.5" y="1" width="2" height="10"/></svg>
+                      </button>
+                      <button class="tbtn" id="playBtn" aria-label="Воспроизвести">
+                        <svg viewBox="0 0 13 12" aria-hidden="true"><path d="M3 1l9 5-9 5V1Z"/></svg>
+                      </button>
+                      <button class="tbtn is-active" id="pauseBtn" aria-label="Пауза">
+                        <svg viewBox="0 0 13 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10"/><rect x="8" y="1" width="3" height="10"/></svg>
+                      </button>
+                      <button class="tbtn" id="stopBtn" aria-label="Стоп">
+                        <svg viewBox="0 0 13 12" aria-hidden="true"><rect x="2" y="2" width="9" height="9"/></svg>
+                      </button>
+                      <button class="tbtn" id="nextBtn" aria-label="Следующий трек">
+                        <svg viewBox="0 0 13 12" aria-hidden="true"><path d="M2.5 1l8 5-8 5V1Z"/><rect x="0.5" y="1" width="2" height="10"/></svg>
+                      </button>
+                    </div>
+                    <div class="toggles" role="group" aria-label="Режимы">
+                      <button class="toggle is-on" id="eqToggle" aria-pressed="true">EQ</button>
+                      <button class="toggle is-on" id="plToggle" aria-pressed="true">PL</button>
+                      <button class="toggle" id="shuffleToggle" aria-pressed="false">SHUF</button>
+                      <button class="toggle" id="repeatToggle" aria-pressed="false">REP</button>
+                    </div>
+                  </div>
+                  <div class="mix-row">
+                    <div class="mix">
+                      <span class="mix-label">VOL</span>
+                      <div class="slider mini" id="volSlider" role="slider" tabindex="0" aria-label="Громкость" aria-valuemin="0" aria-valuemax="100" aria-valuenow="78">
+                        <div class="slider-track"><div class="slider-fill"></div></div>
+                        <div class="slider-thumb"></div>
+                      </div>
+                    </div>
+                    <div class="mix">
+                      <span class="mix-label">BAL</span>
+                      <div class="slider mini" id="balSlider" role="slider" tabindex="0" aria-label="Баланс" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+                        <div class="slider-track"><div class="slider-fill"></div></div>
+                        <div class="slider-thumb"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="clutter" aria-hidden="true"><span>O</span><span>A</span><span>I</span><span>D</span><span>V</span></div>
+                </div>
+              </section>
+
+              <!-- equalizer -->
+              <section class="win eq" id="eqWindow" aria-label="Эквалайзер">
+                <div class="win-title">
+                  <span class="win-brand">EQUALIZER</span>
+                  <span class="win-actions" aria-hidden="true"><i>–</i><i>×</i></span>
+                </div>
+                <div class="eq-body">
+                  <div class="eq-top">
+                    <div class="eq-switches">
+                      <button class="toggle is-on" id="eqOn" aria-pressed="true">ON</button>
+                      <button class="toggle" id="eqAuto" aria-pressed="false">AUTO</button>
+                    </div>
+                    <button class="preset" id="presetBtn" aria-label="Пресет эквалайзера Full Bass &amp; Treble. Нажми, чтобы сменить">Full Bass &amp; Treble <span aria-hidden="true">▾</span></button>
+                  </div>
+                  <div class="eq-graph" aria-hidden="true">
+                    <svg viewBox="0 0 300 44" preserveAspectRatio="none">
+                      <line class="eq-center" x1="0" y1="22" x2="300" y2="22"></line>
+                      <polyline id="eqLine" points="0,14 33,15 66,16 100,18 133,22 166,24 200,22 233,20 266,17 300,14"></polyline>
+                      <g id="eqDots"></g>
+                    </svg>
+                  </div>
+                  <div class="eq-rack" id="eqRack" role="group" aria-label="Полосы эквалайзера"></div>
+                  <div class="sr-only" id="eqStatus" aria-live="polite">Пресет Full Bass &amp; Treble</div>
+                </div>
+              </section>
+            </div>
+
+            <div class="col">
+              <!-- playlist -->
+              <section class="win playlist" aria-label="Редактор плейлиста">
+                <div class="win-title">
+                  <span class="win-brand">PLAYLIST EDITOR</span>
+                  <span class="win-meta">10 TRACKS</span>
+                  <span class="win-actions" aria-hidden="true"><i>–</i><i>×</i></span>
+                </div>
+                <div class="pl-body">
+                  <div class="pl-top">
+                    <label class="pl-search">
+                      <svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="5" cy="5" r="3.4"></circle><path d="m8 8 3 3"></path></svg>
+                      <input id="plFilter" type="text" placeholder="filter" aria-label="Фильтр плейлиста" autocomplete="off" spellcheck="false">
+                    </label>
+                    <span class="pl-count" id="plCount">10/10</span>
+                  </div>
+                  <div class="pl-head" aria-hidden="true"><span class="num">#</span><span>TITLE</span><span class="dur">TIME</span></div>
+                  <ul class="pl-list" id="plList">
+                    <li><button class="pl-row is-current" aria-current="true" data-title="Boards of Canada — Roygbiv" data-dur="152"><span class="num">01</span><span class="t">Boards of Canada — Roygbiv</span><span class="dur">2:32</span></button></li>
+                    <li><button class="pl-row" data-title="Air — La Femme d'Argent" data-dur="430"><span class="num">02</span><span class="t">Air — La Femme d'Argent</span><span class="dur">7:10</span></button></li>
+                    <li><button class="pl-row" data-title="Massive Attack — Teardrop" data-dur="329"><span class="num">03</span><span class="t">Massive Attack — Teardrop</span><span class="dur">5:29</span></button></li>
+                    <li><button class="pl-row" data-title="Tycho — A Walk" data-dur="316"><span class="num">04</span><span class="t">Tycho — A Walk</span><span class="dur">5:16</span></button></li>
+                    <li><button class="pl-row" data-title="Aphex Twin — Xtal" data-dur="291"><span class="num">05</span><span class="t">Aphex Twin — Xtal</span><span class="dur">4:51</span></button></li>
+                    <li><button class="pl-row" data-title="Portishead — Roads" data-dur="305"><span class="num">06</span><span class="t">Portishead — Roads</span><span class="dur">5:05</span></button></li>
+                    <li><button class="pl-row" data-title="Bonobo — Kerala" data-dur="237"><span class="num">07</span><span class="t">Bonobo — Kerala</span><span class="dur">3:57</span></button></li>
+                    <li><button class="pl-row" data-title="Four Tet — Two Thousand and Seventeen" data-dur="252"><span class="num">08</span><span class="t">Four Tet — Two Thousand and Seventeen</span><span class="dur">4:12</span></button></li>
+                    <li><button class="pl-row" data-title="Burial — Archangel" data-dur="239"><span class="num">09</span><span class="t">Burial — Archangel</span><span class="dur">3:59</span></button></li>
+                    <li><button class="pl-row" data-title="DJ Shadow — Midnight in a Perfect World" data-dur="300"><span class="num">10</span><span class="t">DJ Shadow — Midnight in a Perfect World</span><span class="dur">5:00</span></button></li>
+                  </ul>
+                  <div class="pl-foot">
+                    <div class="pl-actions" aria-hidden="true"><span>ADD</span><span>REM</span><span>SEL</span><span>MISC</span><span>LIST</span></div>
+                    <span class="pl-total">10 tracks · 47:31</span>
+                  </div>
+                </div>
+              </section>
+
+              <!-- visualizer -->
+              <section class="win viz" aria-label="Визуализатор">
+                <div class="win-title">
+                  <span class="win-brand">VISUALIZER · MILKDROP</span>
+                  <span class="win-meta">60 FPS</span>
+                  <span class="win-actions" aria-hidden="true"><i>–</i><i>×</i></span>
+                </div>
+                <div class="viz-screen" aria-hidden="true">
+                  <div class="blob b1"></div>
+                  <div class="blob b2"></div>
+                  <div class="blob b3"></div>
+                  <div class="viz-badge">PROJECTM · VISCOLOR.TXT</div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+        <p class="stage-foot"><span class="mono-label">275×116 · макет 1.8×</span><span>Оригинальная графика в духе Winamp 2.x. Не ассеты Nullsoft.</span></p>
+        <span class="sr-only" id="liveStatus" aria-live="polite"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="audit">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow"><span class="led amber"></span>аудит</p>
+          <h2>Что уже есть и чего пока нет.</h2>
+        </div>
+        <p class="lede">Каркас работает: файлы открываются, очередь играет, треки переключаются. Но это спайк на 150 строк, а не фундамент для плеера, которым пользуются каждый день.</p>
+      </div>
+
+      <div class="audit-grid">
+        <div class="audit-left">
+        <figure class="now-mock">
+          <div class="now-window" aria-hidden="true">
+            <div class="now-chrome"><i></i><i></i><i></i><span>MacAmp</span></div>
+            <div class="now-body">
+              <div class="now-h">MacAmp</div>
+              <div class="now-sub">No track selected</div>
+              <div class="now-btns">
+                <span class="eg-btn primary">Open files…</span>
+                <span class="eg-btn">Play</span>
+                <span class="eg-btn">Stop</span>
+              </div>
+              <div class="eg-sep"></div>
+              <div class="now-h2">Queue</div>
+              <p class="now-hint">Drop audio files here or open them from Finder.</p>
+              <div class="now-empty"></div>
+            </div>
+          </div>
+          <figcaption><span class="tag">сейчас</span><span>420×320, стандартные виджеты egui, ни одного скина</span></figcaption>
+        </figure>
+        <div class="callout">
+          <span class="mono-label">хорошая новость</span>
+          <strong>Переписать дешевле, чем наращивать.</strong> Поэтому этап 0 — не новые фичи, а основа: аудио, состояние, сборка, тесты. 150 строк для этого достаточно.
+        </div>
+        </div>
+
+        <div class="audit-lists">
+          <div class="audit-block">
+            <h3>Что работает</h3>
+            <ul class="check-list">
+              <li>Открытие файлов и drag &amp; drop из Finder</li>
+              <li>Очередь и автопереход к следующему треку</li>
+              <li>Play, Pause, Stop и текущая позиция</li>
+              <li>Понятная ошибка, если файл не декодируется</li>
+            </ul>
+          </div>
+          <div class="audit-block">
+            <h3>Что мешает жить</h3>
+            <ul class="cross-list">
+              <li>Нет громкости, перемотки и длительности: только play и pause</li>
+              <li>Нет тегов и обложек: в очереди имена файлов</li>
+              <li>Очередь живёт до закрытия окна; нет ни настроек, ни сессии</li>
+              <li>Нет библиотеки, плейлистов, эквалайзера, скинов и визуализаций</li>
+              <li>Нет хоткеев, media keys, Now Playing и нормального .app</li>
+            </ul>
+          </div>
+          <div class="audit-block">
+            <h3>Технический долг</h3>
+            <ol class="tech-list">
+              <li><span><code>src/playback.rs:13</code> создаёт новый <code>OutputStream</code> на каждый трек. Устройство открывается заново, на стыке слышен провал.</span></li>
+              <li><span>egui 0.31.1 при актуальной 0.37.0. Шесть минорных релизов разницы, и с каждым новый код дороже переносить.</span></li>
+              <li><span>rodio 0.20 <code>Sink</code> не даёт из коробки длины очереди, gapless, эквалайзера и кроссфейда. Нужна нормальная обёртка движка.</span></li>
+              <li><span>Нет git, CI, логов и тестов. Ошибки декодирования на середине трека проходят молча.</span></li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="direction">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow"><span class="led"></span>направление</p>
+          <h2>Классика снаружи. Современный движок внутри.</h2>
+        </div>
+        <p class="lede">Не пиксельная копия Winamp, а оригинальный скин в той же школе: графит, фосфорные индикаторы, серебряные фаски. Вся встроенная графика нарисована для MacAmp; скины Winamp пользователь загружает сам.</p>
+      </div>
+
+      <div class="skins-grid">
+        <article class="skin-card">
+          <div class="mini" aria-hidden="true">
+            <div class="mini-title"><span>MACAMP 2.0</span><i></i></div>
+            <div class="mini-body">
+              <div class="mini-screen"><span class="mini-time">01:23</span><span class="mini-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></div>
+              <div class="mini-actions"><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+          </div>
+          <h4>Graphite</h4>
+          <p>Уголь, фосфор и серебро. Классика без карикатуры, основной скин.</p>
+          <span class="skin-tag">по умолчанию</span>
+        </article>
+
+        <article class="skin-card">
+          <div class="mini midnight" aria-hidden="true">
+            <div class="mini-title"><span>MACAMP 2.0</span><i></i></div>
+            <div class="mini-body">
+              <div class="mini-screen"><span class="mini-time">03:42</span><span class="mini-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></div>
+              <div class="mini-actions"><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+          </div>
+          <h4>Midnight</h4>
+          <p>Холодное стекло и лёд. Для ночных сессий и тихих наушников.</p>
+          <span class="skin-tag">второй встроенный</span>
+        </article>
+
+        <article class="skin-card">
+          <div class="mini brass" aria-hidden="true">
+            <div class="mini-title"><span>MACAMP 2.0</span><i></i></div>
+            <div class="mini-body">
+              <div class="mini-screen"><span class="mini-time">12:07</span><span class="mini-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></div>
+              <div class="mini-actions"><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+          </div>
+          <h4>Brass</h4>
+          <p>Тёплый металл и янтарные индикаторы. Винтажный ресивер на столе.</p>
+          <span class="skin-tag">третий встроенный</span>
+        </article>
+
+        <article class="skin-card custom">
+          <div class="mini mini-import" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M6 3h7l5 5v13H6z"></path><path d="M13 3v5h5"></path><path d="M9 15h6M12 12v6"></path></svg>
+            <span>.WSZ</span>
+          </div>
+          <h4>Твой скин</h4>
+          <p>Импорт архивов Winamp 2.x: спрайты, цвета, region. Один drag &amp; drop.</p>
+          <span class="skin-tag">этап 4</span>
+        </article>
+      </div>
+
+      <div class="facts-strip">
+        <div class="fact"><strong>275 × 116</strong><span>канонический размер главного окна; всё остальное — масштаб</span></div>
+        <div class="fact"><strong>1× / 2× / 3×</strong><span>nearest-neighbor, целые пиксели и резкость на Retina</span></div>
+        <div class="fact"><strong>Shade mode</strong><span>двойной клик по заголовку оставляет только полоску</span></div>
+        <div class="fact"><strong>Snap &amp; group</strong><span>окна прилипают друг к другу и двигаются вместе</span></div>
+      </div>
+
+      <div class="modern-block">
+        <div class="modern-copy">
+          <p class="mono-label">вторая половина</p>
+          <h3>Медиатека, которая не ломает классику.</h3>
+          <p>Классический плейлист хорош, пока треков десятки. Для коллекции на 20 000 файлов нужен отдельный современный вид: поиск, обложки, умные плейлисты, метаданные. Тот же движок, другой скин. Классические окна остаются главным входом.</p>
+        </div>
+
+        <div class="modern-mock" aria-hidden="true">
+          <div class="mm-titlebar">
+            <span class="mm-dots"><i></i><i></i><i></i></span>
+            <span>MacAmp · Library</span>
+            <span class="mm-title-meta">Graphite Modern</span>
+          </div>
+          <div class="mm-shell">
+            <aside class="mm-side">
+              <div class="mm-brand">MacAmp</div>
+              <nav class="mm-nav">
+                <span class="is-active"><svg viewBox="0 0 12 12"><path d="M2 2h8v8H2z"></path><path d="M4 2v8M8 2v8"></path></svg>Библиотека</span>
+                <span><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.2"></circle><circle cx="6" cy="6" r="1"></circle></svg>Альбомы</span>
+                <span><svg viewBox="0 0 12 12"><path d="M2 3h8M2 6h8M2 9h8"></path></svg>Исполнители</span>
+                <span><svg viewBox="0 0 12 12"><path d="M2 2h8v8H2z"></path><path d="M4 4h4M4 6h4"></path></svg>Плейлисты</span>
+                <span><svg viewBox="0 0 12 12"><path d="M1 7c2-4 3 2 5-1s3 2 5-1"></path></svg>Визуализатор</span>
+              </nav>
+              <div class="mm-side-foot"><span class="mm-skin-dot"></span>Graphite Modern</div>
+            </aside>
+            <div class="mm-main">
+              <div class="mm-top">
+                <div class="mm-search"><svg viewBox="0 0 12 12"><circle cx="5" cy="5" r="3.2"></circle><path d="m7.4 7.4 2.6 2.6"></path></svg>Search library</div>
+                <span class="mm-count">1 248 TRACKS</span>
+              </div>
+              <div class="mm-heading"><h4>Recently added</h4><span>SHOW ALL</span></div>
+              <div class="mm-grid">
+                <figure class="mm-album">
+                  <div class="mm-cover c1"><span>AWAKE</span></div>
+                  <figcaption>Awake<span>Tycho</span></figcaption>
+                </figure>
+                <figure class="mm-album">
+                  <div class="mm-cover c2"><span>MEZZANINE</span></div>
+                  <figcaption>Mezzanine<span>Massive Attack</span></figcaption>
+                </figure>
+                <figure class="mm-album">
+                  <div class="mm-cover c3"><span>MUSIC HAS THE RIGHT</span></div>
+                  <figcaption>Music Has the Right…<span>Boards of Canada</span></figcaption>
+                </figure>
+                <figure class="mm-album">
+                  <div class="mm-cover c4"><span>MIGRATION</span></div>
+                  <figcaption>Migration<span>Bonobo</span></figcaption>
+                </figure>
+                <figure class="mm-album">
+                  <div class="mm-cover c5"><span>MOON SAFARI</span></div>
+                  <figcaption>Moon Safari<span>Air</span></figcaption>
+                </figure>
+                <figure class="mm-album">
+                  <div class="mm-cover c6"><span>DUMMY</span></div>
+                  <figcaption>Dummy<span>Portishead</span></figcaption>
+                </figure>
+              </div>
+            </div>
+          </div>
+          <div class="mm-player">
+            <div class="mm-now">
+              <div class="mm-thumb c3"></div>
+              <div><strong>Teardrop</strong><span>Massive Attack · Mezzanine</span></div>
+            </div>
+            <div class="mm-transport">
+              <i><svg viewBox="0 0 12 12"><path d="M9 1 2 6l7 5V1Z"></path><rect x="9" y="1" width="2" height="10"></rect></svg></i>
+              <i class="play"><svg viewBox="0 0 12 12"><path d="M3 1l8 5-8 5V1Z"></path></svg></i>
+              <i><svg viewBox="0 0 12 12"><path d="M3 1l7 5-7 5V1Z"></path><rect x="1" y="1" width="2" height="10"></rect></svg></i>
+            </div>
+            <div class="mm-progress"><span></span></div>
+            <span class="mm-time">2:14 / 5:29</span>
+            <div class="mm-vol"><span></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="wishes">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow"><span class="led"></span>хотелки</p>
+          <h2>Всё, что хочется успеть.</h2>
+        </div>
+        <p class="lede">Три уровня: без первого плеер не живёт, второе даёт характер, третье заставляет влюбиться. Это и есть честный бэклог на первые версии.</p>
+      </div>
+
+      <div class="lanes">
+        <article class="lane lane-core">
+          <header class="lane-head">
+            <span class="mono-label">ядро</span>
+            <h3>Без этого не живёт</h3>
+            <p>Ежедневные вещи, которых сейчас нет. Каждая закрывает реальную боль.</p>
+          </header>
+          <ul class="wish-list">
+            <li class="wish-item"><span class="wish-title">Один аудиопоток на приложение</span><span class="wish-desc">gapless-переходы, без щелчков и повторного открытия устройства</span></li>
+            <li class="wish-item"><span class="wish-title">Перемотка, громкость, баланс</span><span class="wish-desc">мышью, клавиатурой и стрелками; плюс длительность трека</span></li>
+            <li class="wish-item"><span class="wish-title">Теги и обложки</span><span class="wish-desc">title, artist, album, year, duration, bitrate и artwork</span></li>
+            <li class="wish-item"><span class="wish-title">Эквалайзер на 10 полос</span><span class="wish-desc">пресеты, preamp, auto и живая кривая в окне EQ</span></li>
+            <li class="wish-item"><span class="wish-title">Плейлисты m3u / m3u8 / pls</span><span class="wish-desc">импорт из Winamp, drag &amp; drop, сортировка, поиск</span></li>
+            <li class="wish-item"><span class="wish-title">Медиатека на SQLite</span><span class="wish-desc">папки, фоновый скан, обложки, быстрый поиск по 20k треков</span></li>
+            <li class="wish-item"><span class="wish-title">Жизнь между запусками</span><span class="wish-desc">очередь, позиция, громкость, EQ и скин после перезапуска</span></li>
+            <li class="wish-item"><span class="wish-title">macOS-минимум</span><span class="wish-desc">.app с иконкой, Finder, hotkeys, media keys, Now Playing</span></li>
+          </ul>
+          <span class="lane-note">этапы 0–1</span>
+        </article>
+
+        <article class="lane lane-character">
+          <header class="lane-head">
+            <span class="mono-label">характер</span>
+            <h3>За что это MacAmp</h3>
+            <p>То, что нельзя выразить строчкой в changelog. Узнаваемость и удовольствие.</p>
+          </header>
+          <ul class="wish-list">
+            <li class="wish-item"><span class="wish-title">Классические окна</span><span class="wish-desc">Main, Playlist и EQ как отдельные окна, а не панели</span></li>
+            <li class="wish-item"><span class="wish-title">Три оригинальных скина</span><span class="wish-desc">Graphite, Midnight и Brass; вся палитра в токенах</span></li>
+            <li class="wish-item"><span class="wish-title">Импорт .wsz</span><span class="wish-desc">скины Winamp 2.x, предпросмотр и установка одним drop</span></li>
+            <li class="wish-item"><span class="wish-title">LED-дисплей и спектр</span><span class="wish-desc">фосфорные сегменты, oscilloscope, бегущая строка, kbps и kHz</span></li>
+            <li class="wish-item"><span class="wish-title">Хоткеи Winamp</span><span class="wish-desc">Z / X / C / V / B, стрелки и громкость; плюс привычные ⌘-комбинации</span></li>
+            <li class="wish-item"><span class="wish-title">Окна-инструменты</span><span class="wish-desc">snapping, группировка, always-on-top и прозрачность</span></li>
+            <li class="wish-item"><span class="wish-title">Мелкие детали</span><span class="wish-desc">clutterbar O/A/I/D/V, кнопки EQ/PL, windowshade, doublesize</span></li>
+            <li class="wish-item"><span class="wish-title">About с ламой</span><span class="wish-desc">версия, кредиты и одна пасхалка. Без рекламного пикселя</span></li>
+          </ul>
+          <span class="lane-note">этапы 2 и 4</span>
+        </article>
+
+        <article class="lane lane-magic">
+          <header class="lane-head">
+            <span class="mono-label">магия</span>
+            <h3>Почему влюбиться</h3>
+            <p>Функции, ради которых открывают плеер, когда музыка уже играет.</p>
+          </header>
+          <ul class="wish-list">
+            <li class="wish-item"><span class="wish-title">MilkDrop через projectM</span><span class="wish-desc">настоящие .milk-пресеты; опциональная сборка</span></li>
+            <li class="wish-item"><span class="wish-title">Полноэкранная визуализация</span><span class="wish-desc">второй монитор, 60 fps и спрятанный курсор</span></li>
+            <li class="wish-item"><span class="wish-title">Кроссфейд 0–12 с</span><span class="wish-desc">плавные переходы с настраиваемой кривой</span></li>
+            <li class="wish-item"><span class="wish-title">ReplayGain</span><span class="wish-desc">альбомный и трековый, без скачков громкости</span></li>
+            <li class="wish-item"><span class="wish-title">Умные плейлисты</span><span class="wish-desc">рейтинги, play count и «не игравшее месяц»</span></li>
+            <li class="wish-item"><span class="wish-title">Menu-bar mini player</span><span class="wish-desc">пульт в строке меню для тех, кто не хочет лишнее окно</span></li>
+            <li class="wish-item"><span class="wish-title">Last.fm scrobble</span><span class="wish-desc">opt-in и только при желании</span></li>
+            <li class="wish-item"><span class="wish-title">Случайный скин при запуске</span><span class="wish-desc">маленькая радость каждое утро</span></li>
+          </ul>
+          <span class="lane-note">этап 4 и дальше</span>
+        </article>
+      </div>
+
+      <div class="quality-bar">
+        <div class="quality-cell"><strong>60 fps</strong><span>визуализатор</span></div>
+        <div class="quality-cell"><strong>&lt; 1%</strong><span>CPU в паузе</span></div>
+        <div class="quality-cell"><strong>&lt; 50 мс</strong><span>поиск на 20k треков</span></div>
+        <div class="quality-cell"><strong>&lt; 1 с</strong><span>холодный старт</span></div>
+        <div class="quality-cell"><strong>0</strong><span>телеметрии</span></div>
+      </div>
+      <div class="anti">
+        <strong>не делаем</strong>
+        <span>подписку</span>
+        <span>рекламу</span>
+        <span>аккаунт</span>
+        <span>облачный лок-ин</span>
+        <span>навязанные рекомендации</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="build">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow"><span class="led"></span>сборка</p>
+          <h2>Четыре решения, которые определяют остальное.</h2>
+        </div>
+        <p class="lede">Ставки с понятными причинами. Всё проверено под текущий Rust 1.100 и macOS; версии сверены с crates.io 20 ноября 2026.</p>
+      </div>
+
+      <div class="decisions">
+        <article class="decision">
+          <span class="decision-tag">UI</span>
+          <h3>egui 0.37, сразу</h3>
+          <p>Проект на 0.31.1, актуальна 0.37.0. Шесть минорных релизов дают системные шрифты, лучший accessibility и позиционирование traffic lights для кастомных тайтлбаров macOS. Пока кода 150 строк, апгрейд почти бесплатный.</p>
+        </article>
+        <article class="decision">
+          <span class="decision-tag">Audio</span>
+          <h3>Один звуковой поток на приложение</h3>
+          <p>Сейчас <code>OutputStream</code> открывается на каждый трек. Дальше: долгоживущий поток, очередь декодеров, seek и volume, EQ-фильтры как <code>Source</code>, tap для FFT. Начать на rodio 0.23; свой микшер на cpal — только если упрёмся в кроссфейд.</p>
+        </article>
+        <article class="decision">
+          <span class="decision-tag">Skins</span>
+          <h3>Спрайтовый рендер, не виджеты</h3>
+          <p>Classic skin — это атлас, nearest-neighbor и целочисленный масштаб. egui остаётся для ввода, текста и accessibility. <code>.wsz</code> разбираем через wsz 0.2, раскладку и поведение пишем сами. Встроенная графика оригинальная.</p>
+        </article>
+        <article class="decision">
+          <span class="decision-tag">Library</span>
+          <h3>Медиатека отдельно от плеера</h3>
+          <p>SQLite, lofty, фоновый скан, notify и кэш обложек. UI никогда не ждёт диск. Плейлисты m3u и pls — маленький собственный парсер без лишних зависимостей. Поиск остаётся мгновенным на большой коллекции.</p>
+        </article>
+      </div>
+
+      <div class="build-grid">
+        <div class="stack-panel">
+          <span class="mono-label">стек · ноябрь 2026</span>
+          <div class="stack-group"><span class="stack-label">UI</span><div class="stack-chips"><span class="crate"><b>egui</b> 0.37</span><span class="crate"><b>eframe</b> 0.37</span><span class="crate"><b>egui_extras</b> 0.37</span></div></div>
+          <div class="stack-group"><span class="stack-label">Audio</span><div class="stack-chips"><span class="crate"><b>rodio</b> 0.23</span><span class="crate"><b>symphonia</b> 0.6</span><span class="crate"><b>biquad</b> 0.6</span><span class="crate"><b>realfft</b> 3.5</span><span class="crate"><b>ringbuf</b> 0.6</span><span class="crate"><b>cpal</b> 0.18*</span></div></div>
+          <div class="stack-group"><span class="stack-label">Library</span><div class="stack-chips"><span class="crate"><b>lofty</b> 0.25</span><span class="crate"><b>rusqlite</b> 0.43</span><span class="crate"><b>walkdir</b> 2.5</span><span class="crate"><b>notify</b> 8.2</span><span class="crate"><b>image</b> 0.25</span></div></div>
+          <div class="stack-group"><span class="stack-label">Skins</span><div class="stack-chips"><span class="crate"><b>wsz</b> 0.2</span><span class="crate"><b>zip</b> 9</span><span class="crate"><b>image</b> 0.25</span></div></div>
+          <div class="stack-group"><span class="stack-label">macOS</span><div class="stack-chips"><span class="crate"><b>souvlaki</b> 0.9</span><span class="crate"><b>directories</b> 6</span></div></div>
+          <div class="stack-group"><span class="stack-label">Visual</span><div class="stack-chips"><span class="crate"><b>projectm</b> 3.1*</span><span class="crate"><b>egui_glow</b></span><span class="crate"><b>wgpu</b></span></div></div>
+          <div class="stack-group"><span class="stack-label">Base</span><div class="stack-chips"><span class="crate"><b>serde</b> 1</span><span class="crate"><b>tracing</b></span><span class="crate"><b>thiserror</b> 2</span></div></div>
+          <div class="stack-group"><span class="stack-label">Ship</span><div class="stack-chips"><span class="crate"><b>cargo-packager</b></span><span class="crate"><b>codesign</b></span><span class="crate"><b>notarytool</b></span></div></div>
+          <p class="stack-foot">* опционально: libprojectm и собственный движок подключаются только если понадобятся.</p>
+        </div>
+
+        <div>
+          <pre class="tree" role="region" aria-label="Структура модулей проекта" tabindex="0"><span class="root">src/</span>
+  <span class="a">main.rs</span>          <span class="c">окно и запуск</span>
+  <span class="a">app/</span>             <span class="c">состояние, команды, хоткеи</span>
+  <span class="a">audio/</span>           <span class="c">движок, DSP-цепочка, tap для FFT</span>
+  <span class="a">library/</span>         <span class="c">SQLite, скан, обложки</span>
+  <span class="a">playlist/</span>        <span class="c">модель, m3u/pls, undo</span>
+  <span class="a">skin/</span>            <span class="c">атлас, метрики, .wsz</span>
+  <span class="a">ui/</span>              <span class="c">main, playlist, eq, viz, prefs</span>
+  <span class="a">platform/</span>        <span class="c">media keys, Now Playing, Finder</span></pre>
+          <p class="build-note">Сначала один крейт и честные модули. Разносить по workspace есть смысл только после этапа 3, когда появятся реальные границы.</p>
+          <p class="build-note">Custom titlebar на macOS: в eframe 0.37 появился <code>Frame::set_traffic_lights_position</code>. Это снимает большую часть боли со спрайтовыми окнами.</p>
+          <p class="build-note">Кириллица: у Silkscreen нет русских глифов. Для тегов нужен пиксельный шрифт с кириллицей или аккуратный fallback, иначе русские названия выпадут из стиля.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="plan">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow"><span class="led"></span>план</p>
+          <h2>Пять недель до плеера, которым пользуешься.</h2>
+        </div>
+        <p class="lede">Оценка для одного инженера, включая тесты: 21–31 рабочий день. С агентом календарно быстрее, но ревью, вкус и отладка на macOS всё равно остаются.</p>
+      </div>
+
+      <div class="plan-head">
+        <div class="chips">
+          <span class="chip">6 фаз</span>
+          <span class="chip">каждая заканчивается рабочим .app</span>
+          <span class="chip">этап 2 — главный визуальный риск</span>
+        </div>
+        <div class="estimate"><strong>21–31</strong><span>инженерных дней</span></div>
+      </div>
+
+      <ol class="timeline">
+        <li class="phase">
+          <span class="phase-marker" aria-hidden="true"></span>
+          <article class="phase-card">
+            <div class="phase-head"><span class="phase-title"><span class="phase-num">00</span>Фундамент</span><span class="duration">1–2 дня</span></div>
+            <p>git и CI (fmt, clippy, тесты), egui 0.37, конфиг в Application Support, логи, .app с иконкой и ассоциациями файлов. Никаких новых фич.</p>
+            <p class="done-line"><b>готово</b><span>Чистая сборка, приложение запускается из Finder, настройки переживают перезапуск.</span></p>
+          </article>
+        </li>
+        <li class="phase">
+          <span class="phase-marker" aria-hidden="true"></span>
+          <article class="phase-card">
+            <div class="phase-head"><span class="phase-title"><span class="phase-num">01</span>Звук, которым пользуешься</span><span class="duration">3–4 дня</span></div>
+            <p>Постоянный OutputStream, очередь, seek, volume и balance, теги и обложки, длительность, аварийный переход через битые файлы, media keys, Now Playing и восстановление сессии.</p>
+            <p class="done-line"><b>готово</b><span>Час прослушивания без щелчков; после перезапуска играет с той же секунды.</span></p>
+          </article>
+        </li>
+        <li class="phase is-key">
+          <span class="phase-marker" aria-hidden="true"></span>
+          <article class="phase-card">
+            <div class="phase-head"><span class="phase-title"><span class="phase-num">02</span>Классика на экране</span><span class="duration">5–7 дней</span></div>
+            <p>Спрайтовый main, playlist и EQ; windowshade, doublesize, хоткеи, snapping, группировка окон. Оригинальный Graphite как основной скин. Это сердце проекта.</p>
+            <p class="done-line"><b>готово</b><span>Скриншот узнаётся как MacAmp; окна таскаются, прилипают и не отваливаются на Retina.</span></p>
+          </article>
+        </li>
+        <li class="phase">
+          <span class="phase-marker" aria-hidden="true"></span>
+          <article class="phase-card">
+            <div class="phase-head"><span class="phase-title"><span class="phase-num">03</span>Коллекция</span><span class="duration">4–6 дней</span></div>
+            <p>SQLite-индекс, скан папок и watch, поиск, m3u/pls, drag &amp; drop папок, современный library view. Плеер перестаёт быть списком файлов и становится медиатекой.</p>
+            <p class="done-line"><b>готово</b><span>20 000 треков находятся за мгновение, скан идёт фоном, UI не замирает.</span></p>
+          </article>
+        </li>
+        <li class="phase">
+          <span class="phase-marker" aria-hidden="true"></span>
+          <article class="phase-card">
+            <div class="phase-head"><span class="phase-title"><span class="phase-num">04</span>Скины и магия</span><span class="duration">5–8 дней</span></div>
+            <p>Импорт .wsz и браузер скинов, рабочий EQ DSP, FFT-спектр и oscilloscope, fullscreen, кроссфейд, опциональный projectM. Самая приятная и самая рискованная фаза.</p>
+            <p class="done-line"><b>готово</b><span>Скачанный classic skin рисуется без краха; визуализатор держит 60 fps.</span></p>
+          </article>
+        </li>
+        <li class="phase">
+          <span class="phase-marker" aria-hidden="true"></span>
+          <article class="phase-card">
+            <div class="phase-head"><span class="phase-title"><span class="phase-num">05</span>Полировка</span><span class="duration">3–4 дня</span></div>
+            <p>Preferences, RU/EN и кириллица в пиксельном шрифте, accessibility, уведомления, notarization и .dmg. Никаких «потом добавим» в основных сценариях.</p>
+            <p class="done-line"><b>готово</b><span>Незнакомый человек ставит .dmg, запускает и не задаёт ни одного вопроса.</span></p>
+          </article>
+        </li>
+      </ol>
+
+      <div class="plan-bottom">
+        <div class="first-move">
+          <span class="mono-label">первый ход</span>
+          <h3>Спайк классического окна — до всего остального.</h3>
+          <p>Собрать одно окно 275×116 из атласа: кастомный тайтлбар, два отдельных окна на macOS, перетаскивание, snapping. Если egui здесь ведёт себя плохо, это нужно узнать на второй день, а не на третьей неделе.</p>
+        </div>
+        <div class="risks">
+          <div class="risk"><span class="risk-name">Мультиокна egui на macOS</span><span class="risk-mit">Возможны артефакты фокуса и перетаскивания. Спайк и fallback: одно окно с внутренними панелями.</span></div>
+          <div class="risk"><span class="risk-name">Покрытие .wsz</span><span class="risk-mit">Кривые скины существуют. Обязательный набор спрайтов, graceful degradation и лимит распаковки.</span></div>
+          <div class="risk"><span class="risk-name">projectM</span><span class="risk-mit">Нужны системная libprojectm, CMake и OpenGL, лицензия LGPL. Держим опцией и не бандлим пресеты.</span></div>
+          <div class="risk"><span class="risk-name">Аудио-глитчи</span><span class="risk-mit">Отдельный поток, ring buffer и стресс-тест переключений, seek и битых файлов.</span></div>
+          <div class="risk"><span class="risk-name">Расползание объёма</span><span class="risk-mit">Не браться за скины до этапа 1. Каждая фаза заканчивается рабочим .app, а не веткой на месяц.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="finale">
+    <div class="wrap">
+      <div class="finale-box">
+        <p class="mono-label">следующий шаг</p>
+        <h2>Сначала фундамент и звук.</h2>
+        <p>После этапа 1 MacAmp уже можно слушать каждый день. После этапа 2 его узнают на скриншоте. Скины, медиатека и MilkDrop подождут: без нормального аудио и состояния они не спасут.</p>
+        <div class="decision-line">
+          <span>Graphite по умолчанию</span>
+          <span>классические окна — главный вход</span>
+          <span>медиатека — второй режим</span>
+          <span>.wsz — киллер-фича этапа 4</span>
+        </div>
+        <p class="honest">Это концепт, а не реализованные функции. В коде сейчас 150 строк из аудита: открытие файлов, очередь и play/pause. Всё остальное — план на шесть этапов, который начинается с этапа 0 и этапа 1.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot-inner">
+    <span class="foot-brand"><span class="led"></span>MacAmp 2.0</span>
+    <p class="foot-line">Для папки Music, которая весит больше, чем Photos. Локально, без аккаунта и без рекламы.</p>
+    <span class="foot-note">концепция · ноябрь 2026</span>
+  </div>
+</footer>
+
+<script>
+(() => {
+  'use strict';
+
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+  const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
+
+  const desk = $('#desk');
+  const scope = $('#scope');
+  const clock = $('#clock');
+  const marquee = $('#marquee');
+  const marqueeText = $('#marqueeText');
+  const marqueeText2 = $('#marqueeText2');
+  const trackIndex = $('#trackIndex');
+  const seek = $('#seek');
+  const live = $('#liveStatus');
+  const rows = $$('.pl-row');
+  const list = $('#plList');
+  const filter = $('#plFilter');
+  const plCount = $('#plCount');
+  const playBtn = $('#playBtn');
+  const pauseBtn = $('#pauseBtn');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (!desk || !scope || !clock || !seek || !rows.length) return;
+
+  const tracks = rows.map((row, index) => ({
+    el: row,
+    title: row.dataset.title || '',
+    duration: Number(row.dataset.dur) || 0,
+    num: String(index + 1).padStart(2, '0')
+  }));
+
+  const state = {
+    playing: false,
+    index: 0,
+    position: 83,
+    volume: 78,
+    balance: 50,
+    timer: null
+  };
+
+  const fmt = (seconds) => {
+    const total = Math.max(0, Math.floor(seconds));
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  };
+
+  /* spectrum */
+  for (let i = 0; i < 30; i++) {
+    const bar = document.createElement('span');
+    bar.className = 'bar';
+    const base = 18 + Math.round(Math.sin(i * 1.7) * 10 + Math.random() * 20);
+    const low = clamp(base - 12, 8, 38);
+    const high = clamp(base + 18, 34, 96);
+    bar.style.setProperty('--h1', low + '%');
+    bar.style.setProperty('--h2', high + '%');
+    bar.style.setProperty('--d', (-i * 0.055).toFixed(3) + 's');
+    scope.append(bar);
+  }
+
+  /* generic horizontal slider */
+  const setupSlider = (el, initial, onChange) => {
+    if (!el) return { set: () => {} };
+    let pct = clamp(initial, 0, 100);
+    const apply = (next, notify) => {
+      pct = clamp(next, 0, 100);
+      el.style.setProperty('--p', pct.toFixed(2) + '%');
+      el.setAttribute('aria-valuenow', String(Math.round(pct)));
+      if (notify) onChange(pct);
+    };
+    const fromEvent = (event) => {
+      const rect = el.getBoundingClientRect();
+      return ((event.clientX - rect.left) / Math.max(1, rect.width)) * 100;
+    };
+    let dragging = false;
+    el.addEventListener('pointerdown', (event) => {
+      dragging = true;
+      try { el.focus({ preventScroll: true }); } catch (_) {}
+      try { el.setPointerCapture(event.pointerId); } catch (_) {}
+      apply(fromEvent(event), true);
+      event.preventDefault();
+    });
+    el.addEventListener('pointermove', (event) => {
+      if (dragging) apply(fromEvent(event), true);
+    });
+    const stop = () => { dragging = false; };
+    el.addEventListener('pointerup', stop);
+    el.addEventListener('pointercancel', stop);
+    el.addEventListener('keydown', (event) => {
+      let next = pct;
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') next -= 2;
+      else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') next += 2;
+      else if (event.key === 'Home') next = 0;
+      else if (event.key === 'End') next = 100;
+      else return;
+      event.preventDefault();
+      apply(next, true);
+    });
+    apply(pct, false);
+    return { set: (next) => apply(next, false) };
+  };
+
+  const seekControl = setupSlider(seek, (state.position / tracks[0].duration) * 100, (pct) => {
+    const current = tracks[state.index];
+    state.position = (pct / 100) * current.duration;
+    renderTime();
+  });
+
+  const volControl = setupSlider($('#volSlider'), state.volume, (pct) => {
+    state.volume = pct;
+    const slider = $('#volSlider');
+    if (slider) slider.setAttribute('aria-valuetext', Math.round(pct) + ' процентов');
+  });
+
+  const balControl = setupSlider($('#balSlider'), state.balance, (pct) => {
+    state.balance = pct;
+    const slider = $('#balSlider');
+    if (!slider) return;
+    const text = pct < 45 ? 'левее' : pct > 55 ? 'правее' : 'по центру';
+    slider.setAttribute('aria-valuetext', text);
+  });
+
+  function renderTime() {
+    const current = tracks[state.index];
+    clock.textContent = fmt(state.position);
+    const pct = current.duration ? (state.position / current.duration) * 100 : 0;
+    seekControl.set(pct);
+    seek.setAttribute('aria-valuetext', fmt(state.position) + ' из ' + fmt(current.duration));
+    seek.setAttribute('aria-valuenow', String(Math.round(pct)));
+  }
+
+  function updateMarquee() {
+    if (!marquee || !marqueeText) return;
+    const box = marquee.parentElement;
+    if (!box) return;
+    const overflows = marqueeText.scrollWidth > box.clientWidth - 2;
+    const scrolling = state.playing && overflows && !reduceMotion;
+    marquee.classList.toggle('is-scrolling', scrolling);
+    if (scrolling) {
+      marquee.style.animation = 'none';
+      void marquee.offsetWidth;
+      marquee.style.animation = '';
+    } else {
+      marquee.style.animation = 'none';
+    }
+  }
+
+  function renderTrack() {
+    const current = tracks[state.index];
+    marqueeText.textContent = current.title;
+    marqueeText2.textContent = current.title;
+    trackIndex.textContent = (state.index + 1) + '/' + tracks.length;
+    rows.forEach((row, index) => {
+      const active = index === state.index;
+      row.classList.toggle('is-current', active);
+      if (active) row.setAttribute('aria-current', 'true');
+      else row.removeAttribute('aria-current');
+    });
+    updateMarquee();
+  }
+
+  function setPlaying(next) {
+    state.playing = next;
+    desk.classList.toggle('is-playing', next);
+    playBtn.classList.toggle('is-active', next);
+    pauseBtn.classList.toggle('is-active', !next);
+    if (next) {
+      if (state.timer) window.clearInterval(state.timer);
+      state.timer = window.setInterval(tick, 250);
+      live.textContent = 'Воспроизведение: ' + tracks[state.index].title;
+    } else {
+      if (state.timer) window.clearInterval(state.timer);
+      state.timer = null;
+      live.textContent = 'Пауза: ' + tracks[state.index].title;
+    }
+    updateMarquee();
+  }
+
+  function tick() {
+    const current = tracks[state.index];
+    state.position += 0.25;
+    if (state.position >= current.duration) {
+      selectTrack((state.index + 1) % tracks.length, true);
+      return;
+    }
+    renderTime();
+  }
+
+  function selectTrack(index, autoPlay) {
+    state.index = (index + tracks.length) % tracks.length;
+    state.position = 0;
+    renderTrack();
+    renderTime();
+    if (autoPlay) {
+      setPlaying(true);
+      live.textContent = 'Воспроизведение: ' + tracks[state.index].title;
+    } else {
+      live.textContent = 'Выбран трек: ' + tracks[state.index].title;
+    }
+  }
+
+  rows.forEach((row, index) => {
+    row.addEventListener('click', () => selectTrack(index, state.playing));
+  });
+
+  playBtn.addEventListener('click', () => setPlaying(true));
+  pauseBtn.addEventListener('click', () => setPlaying(false));
+  $('#stopBtn').addEventListener('click', () => {
+    setPlaying(false);
+    state.position = 0;
+    renderTime();
+    live.textContent = 'Остановлено';
+  });
+  $('#nextBtn').addEventListener('click', () => selectTrack(state.index + 1, true));
+  $('#prevBtn').addEventListener('click', () => selectTrack(state.index - 1, true));
+
+  $$('.toggle').forEach((button) => {
+    if (button.id === 'eqOn' || button.id === 'eqToggle') return;
+    button.addEventListener('click', () => {
+      const next = button.getAttribute('aria-pressed') !== 'true';
+      button.setAttribute('aria-pressed', String(next));
+      button.classList.toggle('is-on', next);
+    });
+  });
+
+  /* playlist filter */
+  if (filter && list) {
+    filter.addEventListener('input', () => {
+      const query = filter.value.trim().toLowerCase();
+      let shown = 0;
+      $$('.pl-row', list).forEach((row) => {
+        const match = !query || (row.dataset.title || '').toLowerCase().includes(query);
+        row.parentElement.hidden = !match;
+        if (match) shown++;
+      });
+      if (plCount) plCount.textContent = shown + '/' + tracks.length;
+      live.textContent = query ? 'Найдено треков: ' + shown : 'Фильтр очищен';
+    });
+  }
+
+  /* equalizer */
+  const eqRack = $('#eqRack');
+  const eqLine = $('#eqLine');
+  const eqDots = $('#eqDots');
+  const presetBtn = $('#presetBtn');
+  const eqWindow = $('#eqWindow');
+  const presets = [
+    { name: 'Full Bass & Treble', values: [7, 6, 5, 3, 0, -1, 0, 2, 5, 7] },
+    { name: 'Dance', values: [5, 4, 1, 0, -1, 0, 2, 3, 4, 5] },
+    { name: 'Classical', values: [0, 0, 0, 0, 0, 0, -2, -3, -3, -4] },
+    { name: 'Vocal', values: [-3, -2, -1, 1, 4, 5, 4, 2, 0, -1] },
+    { name: 'Flat', values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }
+  ];
+  const bands = [
+    { label: '60', value: 7 },
+    { label: '170', value: 6 },
+    { label: '310', value: 5 },
+    { label: '600', value: 3 },
+    { label: '1K', value: 0 },
+    { label: '3K', value: -1 },
+    { label: '6K', value: 0 },
+    { label: '12K', value: 2 },
+    { label: '14K', value: 5 },
+    { label: '16K', value: 7 }
+  ];
+  let presetIndex = 0;
+  const bandEls = [];
+
+  const dbToPct = (db) => ((clamp(db, -12, 12) + 12) / 24) * 100;
+  const setBandVisual = (el, db) => {
+    const pct = dbToPct(db);
+    el.style.setProperty('--v', pct + '%');
+    el.style.setProperty('--inv', (100 - pct) + '%');
+    el.setAttribute('aria-valuenow', String(Math.round(db)));
+    el.setAttribute('aria-valuetext', (db > 0 ? '+' : '') + db + ' дБ');
+    el.dataset.db = String(db);
+  };
+  const updateCurve = () => {
+    const values = bandEls.map((el) => Number(el.dataset.db) || 0);
+    const points = values.map((db, index) => {
+      const x = (index / (values.length - 1)) * 300;
+      const y = 22 - (clamp(db, -12, 12) / 12) * 18;
+      return [x, y];
+    });
+    if (eqLine) eqLine.setAttribute('points', points.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' '));
+    if (eqDots) {
+      while (eqDots.children.length < points.length) {
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('r', '1.6');
+        dot.setAttribute('class', 'eq-dot');
+        eqDots.append(dot);
+      }
+      points.forEach(([x, y], index) => {
+        const dot = eqDots.children[index];
+        dot.setAttribute('cx', x.toFixed(1));
+        dot.setAttribute('cy', y.toFixed(1));
+      });
+    }
+  };
+
+  if (eqRack) {
+    bands.forEach((band, index) => {
+      const el = document.createElement('div');
+      el.className = 'eq-band';
+      el.tabIndex = 0;
+      el.setAttribute('role', 'slider');
+      el.setAttribute('aria-orientation', 'vertical');
+      el.setAttribute('aria-label', 'Полоса ' + band.label + ' герц');
+      el.setAttribute('aria-valuemin', '-12');
+      el.setAttribute('aria-valuemax', '12');
+      el.innerHTML = '<div class="eq-slot"><div class="eq-fill"></div><div class="eq-zero"></div><div class="eq-thumb"></div></div><span class="eq-label">' + band.label + '</span>';
+      eqRack.append(el);
+      bandEls.push(el);
+      setBandVisual(el, band.value);
+
+      const slot = el.querySelector('.eq-slot');
+      const applyFromPointer = (event) => {
+        const rect = slot.getBoundingClientRect();
+        const ratio = 1 - clamp((event.clientY - rect.top) / Math.max(1, rect.height), 0, 1);
+        const db = Math.round((ratio * 24 - 12) * 2) / 2;
+        setBandVisual(el, db);
+        updateCurve();
+      };
+      let dragging = false;
+      el.addEventListener('pointerdown', (event) => {
+        dragging = true;
+        try { el.focus({ preventScroll: true }); } catch (_) {}
+        try { el.setPointerCapture(event.pointerId); } catch (_) {}
+        applyFromPointer(event);
+        event.preventDefault();
+      });
+      el.addEventListener('pointermove', (event) => {
+        if (dragging) applyFromPointer(event);
+      });
+      const end = () => { dragging = false; };
+      el.addEventListener('pointerup', end);
+      el.addEventListener('pointercancel', end);
+      el.addEventListener('keydown', (event) => {
+        const current = Number(el.dataset.db) || 0;
+        let next = current;
+        if (event.key === 'ArrowUp' || event.key === 'ArrowRight') next += 1;
+        else if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') next -= 1;
+        else if (event.key === 'Home') next = -12;
+        else if (event.key === 'End') next = 12;
+        else return;
+        event.preventDefault();
+        setBandVisual(el, clamp(next, -12, 12));
+        updateCurve();
+      });
+    });
+
+    /* curve dot for the first frame */
+    updateCurve();
+  }
+
+  if (presetBtn) {
+    presetBtn.addEventListener('click', () => {
+      presetIndex = (presetIndex + 1) % presets.length;
+      const preset = presets[presetIndex];
+      presetBtn.innerHTML = preset.name + ' <span aria-hidden="true">▾</span>';
+      presetBtn.setAttribute('aria-label', 'Пресет эквалайзера ' + preset.name + '. Нажми, чтобы сменить');
+      bandEls.forEach((el, index) => setBandVisual(el, preset.values[index]));
+      updateCurve();
+      const status = $('#eqStatus');
+      if (status) status.textContent = 'Пресет ' + preset.name;
+    });
+  }
+
+  const eqOn = $('#eqOn');
+  const eqToggleMain = $('#eqToggle');
+  function setEqEnabled(next) {
+    [eqOn, eqToggleMain].forEach((button) => {
+      if (!button) return;
+      button.setAttribute('aria-pressed', String(next));
+      button.classList.toggle('is-on', next);
+    });
+    if (eqWindow) eqWindow.classList.toggle('is-off', !next);
+    const status = $('#eqStatus');
+    if (status) status.textContent = next ? 'Эквалайзер включён' : 'Эквалайзер выключен';
+  }
+  [eqOn, eqToggleMain].forEach((button) => {
+    if (!button) return;
+    button.addEventListener('click', () => {
+      setEqEnabled(button.getAttribute('aria-pressed') !== 'true');
+    });
+  });
+
+  /* skins */
+  const skinButtons = $$('.skin-btn');
+  const skins = ['graphite', 'midnight', 'brass'];
+  const applySkin = (skin) => {
+    if (!skins.includes(skin)) return;
+    desk.dataset.skin = skin;
+    skinButtons.forEach((button) => {
+      const active = button.dataset.skin === skin;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+  };
+  skinButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      applySkin(button.dataset.skin);
+      try {
+        window.localStorage.setItem('macamp-mock-skin', button.dataset.skin);
+      } catch (_) {}
+    });
+  });
+  try {
+    const saved = window.localStorage.getItem('macamp-mock-skin');
+    if (saved) applySkin(saved);
+  } catch (_) {}
+
+  renderTrack();
+  renderTime();
+  volControl.set(state.volume);
+  balControl.set(state.balance);
+  setPlaying(false);
+  live.textContent = 'Макет готов. Нажми Play.';
+})();
+</script>

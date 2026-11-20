@@ -1,0 +1,39 @@
+[package]
+name = "macamp"
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.95"
+description = "A classic Winamp-inspired music player for macOS"
+publish = false
+
+[dependencies]
+eframe = "0.37"
+egui = "0.37"
+rfd = "0.18"
+rodio = { version = "0.23", default-features = false, features = [
+    "playback",
+    "flac",
+    "mp3",
+    "mp4",
+    "vorbis",
+    "wav",
+    "dither",
+] }
+lofty = "0.25"
+souvlaki = { version = "0.9", default-features = false }
+walkdir = "2.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+directories = "6"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+thiserror = "2"
+realfft = "3.5"
+biquad = "0.6"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+rand = "0.9"
+
+[profile.release]
+lto = "thin"
+strip = true
