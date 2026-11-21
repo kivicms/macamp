@@ -19,6 +19,29 @@ Windowshade — двойной клик по тайтлбару:
 
 ![DriveMusic](docs/macamp_drive.png)
 
+## Установка
+
+Готовые сборки лежат в [Releases](https://github.com/kivicms/macamp/releases/latest).
+
+1. Скачайте `MacAmp-<версия>-universal.dmg` (Apple Silicon и Intel).
+2. Откройте DMG и перетащите **MacAmp** в **Applications**.
+3. Запустите MacAmp из Applications.
+
+Нужна macOS 12 или новее.
+
+Сборка подписана ad-hoc и не нотаризована Apple (для нотаризации нужен
+Developer ID). Если macOS пишет «MacAmp повреждено» или «не может быть
+открыто», снимите карантин у установленного приложения:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/MacAmp.app
+open /Applications/MacAmp.app
+```
+
+В DMG также есть `Install MacAmp.command`, который копирует приложение в
+Applications, снимает карантин и запускает MacAmp (если macOS блокирует скрипт —
+правый клик → «Открыть»).
+
 ## Что уже работает
 
 - Одно долгоживущее аудиоустройство, gapless-переходы и предзагрузка следующего трека.
@@ -56,6 +79,17 @@ cargo run -- "/path/to/album" "/path/to/song.flac"
 ./scripts/bundle_macos.sh
 open dist/MacAmp.app
 ```
+
+Собрать DMG с перетаскиванием в Applications (рядом появится `.sha256`):
+
+```sh
+./scripts/package_dmg.sh
+```
+
+Локально собирается под текущую архитектуру. Универсальную сборку для релиза
+делает `MACAMP_UNIVERSAL=1 ./scripts/package_dmg.sh` (нужен rustup с target'ами
+`aarch64-apple-darwin` и `x86_64-apple-darwin`); её же собирает workflow
+`.github/workflows/release.yml` при пуше тега `v*`.
 
 Поддерживаемые форматы: MP3, FLAC, WAV, M4A/AAC, OGG Vorbis.
 Опус пока не подключён.
@@ -112,7 +146,9 @@ DriveMusic ходит на сайт только по действию поль�
 - `src/app.rs` — состояние сессии, окна, ввод и склейка всего.
 - `src/config.rs` — сохранение сессии, пути, логирование.
 - `scripts/bundle_macos.sh` — сборка `.app`.
+- `scripts/package_dmg.sh` — DMG с `Applications` и инструкцией по установке.
 - `.github/workflows/ci.yml` — fmt, clippy, тесты.
+- `.github/workflows/release.yml` — универсальный DMG и GitHub Release по тегу `v*`.
 
 Проверки:
 

@@ -10,7 +10,8 @@ Winamp, а не минималистичный плеер. «Хотелки» п
 очередью, эквалайзером, плейлистом, скинами, session restore, Now Playing,
 windowshade, double size, стыковка окон, фильтр, drag-reorder, удаление
 треков во время воспроизведения и DriveMusic-браузер, плюс подписанный ad-hoc
-`.app`. Это уже не спайк. `fmt`/`clippy -D warnings` чистые, 23 теста зелёные.
+`.app`, DMG и GitHub Releases по тегу. Это уже не спайк. `fmt`/`clippy -D
+warnings` чистые, 23 теста зелёные.
 
 ## Проверки перед продолжением
 
@@ -21,10 +22,12 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 cargo build
 ./scripts/bundle_macos.sh
+./scripts/package_dmg.sh
 ```
 
-Ожидаемо: 23 теста, `dist/MacAmp.app`, release-бинарник ~18–20 МБ (scraper/
-html5ever добавляют вес).
+Ожидаемо: 23 теста, `dist/MacAmp.app`, `dist/MacAmp-<версия>-<арка>.dmg`
+с `.sha256`, release-бинарник ~18–20 МБ (scraper/html5ever добавляют вес),
+DMG ~10 МБ.
 Единственный внешний warning: `block 0.1.6` (future-incompat) из souvlaki;
 на текущем Rust 1.100 собирается. Наш код warning-free.
 
@@ -44,11 +47,34 @@ open dist/MacAmp.app
 - GUI-запуск из инструментов агента иногда требует `dangerouslyDisableSandbox`,
   иначе CoreAudio может не открыться. Пользовательский запуск обычный.
 
-## Git
+## Git и релизы
 
-`git init -b main` сделан, **коммитов нет**. Все файлы untracked:
-`.github/`, `.gitignore`, `Cargo.*`, `README.md`, `assets/`, `docs/`, `scripts/`,
-`src/`. Коммит делать только если пользователь попросит.
+`main` синхронизирован с `origin` (`git@github.com:kivicms/macamp.git`), репозиторий
+публичный. Релизный процесс:
+
+1. Поднять `version` в `Cargo.toml` (она же попадает в Info.plist и имя DMG).
+2. Закоммитить и запушить `main`.
+3. Поставить тег `v<версия>` (тег обязан совпадать с `Cargo.toml`, workflow это
+   проверяет) и запушить его: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. `.github/workflows/release.yml` прогоняет fmt/clippy/тесты, собирает
+   universal DMG (`MACAMP_UNIVERSAL=1`) и создаёт GitHub Release с
+   `MacAmp-<версия>-universal.dmg`, `.sha256` и инструкцией по установке.
+
+Локальная проверка DMG без пуша:
+
+```sh
+./scripts/package_dmg.sh                    # текущая архитектура
+MACAMP_UNIVERSAL=1 ./scripts/package_dmg.sh # arm64 + x86_64, нужен rustup
+```
+
+DMG содержит `MacAmp.app`, симлинк на `Applications`, `README.txt` и
+`Install MacAmp.command`. Скрипт копирует приложение в `/Applications`, снимает
+`com.apple.quarantine` и запускает его. Подпись ad-hoc, нотаризации нет, поэтому
+Gatekeeper блокирует скачанную сборку; в README, release notes и DMG описана
+команда `xattr -dr com.apple.quarantine /Applications/MacAmp.app`. Для настоящей
+подписи/нотаризации `scripts/package_dmg.sh` понимает
+`MACAMP_SIGN_IDENTITY` (Developer ID) и `MACAMP_NOTARY_PROFILE` (notarytool
+keychain profile); их нужно будет прокинуть в workflow секретами.
 
 ## Карта кода
 
@@ -64,8 +90,11 @@ open dist/MacAmp.app
 | `src/widgets.rs` | кастомные кнопки, слайдеры, тайтлбары, LED-текст, спектр |
 | `src/config.rs` | serde-конфиг, RepeatMode, пути, логи, App Support |
 | `src/platform.rs` | souvlaki: Now Playing + media keys |
-| `scripts/bundle_macos.sh` | release `.app`, Info.plist, icns, ad-hoc codesign |
+| `scripts/bundle_macos.sh` | release `.app`, Info.plist, icns, ad-hoc codesign, universal-сборка |
+| `scripts/package_dmg.sh` | DMG с Applications, README, install-скриптом и `.sha256` |
 | `.github/workflows/ci.yml` | fmt, clippy `-D warnings`, tests, build |
+| `.github/workflows/release.yml` | universal DMG и GitHub Release по тегу `v*` |
+| `.github/release-install.md` | инструкция по установке, добавляется в release notes |
 
 Старый `src/playback.rs` удалён. Не возвращать его.
 
@@ -270,7 +299,9 @@ timeout 20 ./target/debug/macamp /tmp/macamp-demo/*.flac
   поисковые query для ботов — интеграция только user-triggered, для личного
   прослушивания; условия сайта нужно уважать.
 - EQ без AUTO/preamp.
-- Нет локализации/accessibility, не notarized, нет DMG.
+- Нет локализации/accessibility, не notarized. DMG и GitHub Releases уже есть,
+  подпись ad-hoc (Developer ID/нотаризация — когда появится аккаунт Apple
+  Developer).
 - `.app` подписан ad-hoc; `codesign --verify --deep --strict` проходит.
 - Artifact-публикация концепт-страницы блокировалась auth-токеном
   (`ANTHROPIC_AUTH_TOKEN`); страница локальная `docs/macamp_2_0_concept.html`.
