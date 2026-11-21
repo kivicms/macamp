@@ -1,6 +1,6 @@
 # MacAmp — handoff для следующей сессии
 
-Дата среза: **2026-11-20**. Проект: `/Users/kivicms/GolandProjects/macamp`.
+Дата среза: **2026-11-21**. Проект: `/Users/kivicms/GolandProjects/macamp`.
 Пользователь говорит по-русски; хочет красивое, характерное приложение в духе
 Winamp, а не минималистичный плеер. «Хотелки» приветствуются.
 
@@ -27,7 +27,7 @@ cargo build
 
 Ожидаемо: 23 теста, `dist/MacAmp.app`, `dist/MacAmp-<версия>-<арка>.dmg`
 с `.sha256`, release-бинарник ~18–20 МБ (scraper/html5ever добавляют вес),
-DMG ~10 МБ.
+локальный DMG ~10 МБ, universal ~18 МБ.
 Единственный внешний warning: `block 0.1.6` (future-incompat) из souvlaki;
 на текущем Rust 1.100 собирается. Наш код warning-free.
 
@@ -50,7 +50,8 @@ open dist/MacAmp.app
 ## Git и релизы
 
 `main` синхронизирован с `origin` (`git@github.com:kivicms/macamp.git`), репозиторий
-публичный. Релизный процесс:
+публичный. Опубликованный релиз: <https://github.com/kivicms/macamp/releases/tag/v0.2.0>
+(universal DMG `MacAmp-0.2.0-universal.dmg`, ~18 МБ). Релизный процесс:
 
 1. Поднять `version` в `Cargo.toml` (она же попадает в Info.plist и имя DMG).
 2. Закоммитить и запушить `main`.
